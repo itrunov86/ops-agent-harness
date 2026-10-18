@@ -6,6 +6,7 @@ harness — установка и проверка agent-harness для Claude C
     ./harness install [--dry-run] [--force] # разложить скиллы, агентов, правила, хуки; создать базу знаний
     ./harness doctor                        # проверить установку и конфиг
     ./harness uninstall [--dry-run]         # убрать установленное harness (база знаний и бэкапы остаются)
+    ./harness mcp [--register] [--with-kb]  # подготовить sre-toolbox: venv, зависимости, config.yaml; подключить
     ./harness render <file>                 # показать файл репозитория с подставленными значениями
 
 install идемпотентен: повторный запуск обновляет то, что ставил harness, и не трогает чужое. Файл, созданный не
@@ -270,10 +271,57 @@ def mcp_registered() -> dict[str, bool]:
     except (OSError, ValueError):
         claude = False
     try:
-        codex = "[mcp_servers.kb]" in (CODEX / "config.toml").read_text(encoding="utf-8")
+        servers = json.loads((HOME / ".claude.json").read_text(encoding="utf-8")).get("mcpServers", {})
+    except (OSError, ValueError):
+        servers = {}
+    try:
+        codex_text = (CODEX / "config.toml").read_text(encoding="utf-8")
     except OSError:
-        codex = False
-    return {"claude": claude, "codex": codex}
+        codex_text = ""
+    return {"claude": claude, "codex": "[mcp_servers.kb]" in codex_text,
+            "sre-toolbox-claude": "sre-toolbox" in servers, "sre-toolbox-codex": "[mcp_servers.sre-toolbox]" in codex_text}
+
+
+SRE_TOOLBOX = HERE / "mcp" / "sre-toolbox"
+
+
+def cmd_mcp(args) -> int:
+    """Подготовить sre-toolbox: venv, зависимости, config.yaml; с --register — подключить к агентам."""
+    if not (SRE_TOOLBOX / "server.py").exists():
+        print(f"Нет {SRE_TOOLBOX / 'server.py'}")
+        return 1
+    venv, py = SRE_TOOLBOX / ".venv", SRE_TOOLBOX / ".venv" / "bin" / "python"
+    if not py.exists():
+        print(f"venv → {venv}")
+        subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+    subprocess.run([str(py), "-m", "pip", "install", "-q", "-r", str(SRE_TOOLBOX / "requirements.txt")], check=True)
+    cfg = SRE_TOOLBOX / "config.yaml"
+    if not cfg.exists():
+        shutil.copy2(SRE_TOOLBOX / "config.example.yaml", cfg)
+        print(f"Создан {cfg} из примера — впишите адреса систем; токены — как в mcp/sre-toolbox/docs/install.md")
+    server = SRE_TOOLBOX / "server.py"
+    claude_cmd = ["claude", "mcp", "add", "--scope", "user", "sre-toolbox", "--", str(py), str(server)]
+    codex_block = f'\n[mcp_servers.sre-toolbox]\ncommand = "{py}"\nargs = ["{server}"]\n'
+    kb_cmd = ["claude", "mcp", "add", "--scope", "user", "kb", "--", "python3", "-I", str(HERE / "tools/kb_mcp.py")]
+    if not args.register:
+        print("Подключить (или ./harness mcp --register):\n  " + " ".join(claude_cmd)
+              + "\n  # ~/.codex/config.toml:" + codex_block.replace("\n", "\n  "))
+        return 0
+    reg = mcp_registered()
+    plan = Plan(False, False)
+    if shutil.which("claude") and not reg["sre-toolbox-claude"]:
+        plan.backup(HOME / ".claude.json")
+        subprocess.run(claude_cmd, check=False)
+    if shutil.which("claude") and args.with_kb and not reg["claude"]:
+        subprocess.run(kb_cmd, check=False)
+    codex_cfg = CODEX / "config.toml"
+    if codex_cfg.exists() and not reg["sre-toolbox-codex"]:
+        plan.backup(codex_cfg)
+        with codex_cfg.open("a", encoding="utf-8") as fh:
+            fh.write(codex_block)
+        print(f"  добавлен [mcp_servers.sre-toolbox] в {codex_cfg}")
+    print("Готово. Проверка: claude mcp list; в Codex — /mcp")
+    return 0
 
 
 def cmd_init(args) -> int:
@@ -431,6 +479,11 @@ def cmd_doctor(_args) -> int:
     reg = mcp_registered()
     for name in ("claude", "codex"):
         if cfg.raw.get("agents", {}).get(name, True):
+            key = f"sre-toolbox-{name}"
+            print(("  OK   " if reg[key] else "  --   ") + (f"MCP sre-toolbox в {name}" if reg[key] else
+                  f"MCP sre-toolbox не подключён в {name}: ./harness mcp --register"))
+    for name in ("claude", "codex"):
+        if cfg.raw.get("agents", {}).get(name, True):
             print(("  OK   " if reg[name] else "  --   ") + (f"MCP kb в {name}" if reg[name] else
                   f"MCP kb не подключён в {name} (необязательно; есть CLI kb.py):\n{mcp_hint()}"))
     for tool in ("git", "claude", "codex"):
@@ -460,11 +513,14 @@ def main(argv: list[str]) -> int:
     p = sub.add_parser("uninstall", help="удалить установленное")
     p.add_argument("--dry-run", action="store_true")
     sub.add_parser("doctor", help="проверить установку")
+    p = sub.add_parser("mcp", help="подготовить sre-toolbox (venv, зависимости, config.yaml)")
+    p.add_argument("--register", action="store_true", help="подключить к Claude Code и Codex (с бэкапом конфигов)")
+    p.add_argument("--with-kb", action="store_true", help="заодно подключить kb_mcp.py к Claude Code")
     p = sub.add_parser("render", help="показать файл с подстановками")
     p.add_argument("file")
     args = ap.parse_args(argv)
     return {"init": cmd_init, "install": cmd_install, "uninstall": cmd_uninstall,
-            "doctor": cmd_doctor, "render": cmd_render}[args.cmd](args)
+            "doctor": cmd_doctor, "render": cmd_render, "mcp": cmd_mcp}[args.cmd](args)
 
 
 if __name__ == "__main__":

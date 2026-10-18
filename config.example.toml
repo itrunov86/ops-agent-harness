@@ -28,7 +28,7 @@ url = "https://chat.example.com"      # для ссылок на треды
 alert_channels = ["alerts", "infra-alerts"]
 
 [mcp]
-hub = "ops-toolbox"                   # имя основного MCP-сервера интеграций (см. docs/mcp.md)
+hub = "sre-toolbox"                   # имя основного MCP-сервера интеграций; sre-toolbox входит в harness (mcp/)
 
 [agents]
 claude = true                         # ставить скиллы, агентов и хуки для Claude Code

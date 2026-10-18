@@ -29,7 +29,7 @@ project = "OPS"
 assignee = "jdoe"
 url = "https://jira.example.com"
 [mcp]
-hub = "ops-toolbox"
+hub = "sre-toolbox"
 [hooks]
 autocommit = true
 """

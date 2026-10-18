@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sre-toolbox": {
+      "command": ".venv/bin/python",
+      "args": ["server.py"]
+    },
+    "victoriametrics": {
+      "type": "http",
+      "url": "https://vm-mcp.example.com/mcp"
+    }
+  }
+}

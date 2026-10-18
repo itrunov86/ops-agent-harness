@@ -1,0 +1,456 @@
+# =============================================================================
+#  Конфигурация SRE MCP-сервера
+# -----------------------------------------------------------------------------
+#  Скопируйте этот файл в config.yaml и заполните своими значениями.
+#  Файл config.yaml НЕ должен попадать в git (см. .gitignore).
+#  Секреты можно подставлять через переменные окружения синтаксисом ${VAR}.
+# =============================================================================
+
+server:
+  # Имя, под которым MCP-сервер будет виден в Claude
+  name: "sre-toolbox"
+  # Уровень логирования: DEBUG / INFO / WARNING / ERROR
+  log_level: "INFO"
+  # Куда писать audit log (каждый вызов tool). Пустая строка — не писать.
+  # Например "~/.local/state/sre-toolbox/audit.jsonl".
+  audit_log_path: ""
+
+# -----------------------------------------------------------------------------
+#  Alertmanager — источник активных алертов
+# -----------------------------------------------------------------------------
+alertmanager:
+  # Несколько Alertmanager: tools принимают instance (имя или alias).
+  # Старый формат с одним `url` на верхнем уровне тоже работает (инстанс "default").
+  default_instance: "main"
+
+  # Общие настройки; инстанс может переопределить любую из них.
+  auth:
+    bearer_token: "${AM_BEARER_TOKEN}"
+    # basic_user: "readonly"
+    # basic_password: "${AM_BASIC_PASSWORD}"
+
+  headers: {}
+
+  timeout_seconds: 10
+
+  instances:
+    main:
+      url: "https://am.example.com"   # без слеша в конце
+      description: "основной Alertmanager"
+      aliases: ["prod"]
+    legacy:
+      url: "https://am-legacy.example.com"
+      verify_ssl: "certs/ca-bundle.pem"
+
+  limits:
+    max_alerts_returned: 200       # потолок числа алертов в одном ответе
+
+# -----------------------------------------------------------------------------
+#  VictoriaMetrics Select — источник метрик (PromQL-совместимый API)
+# -----------------------------------------------------------------------------
+victoriametrics:
+  # URL VM Select (обычно vmselect или vmsingle).
+  # Для кластерной установки: один тенант — /select/<id>/prometheus,
+  # все тенанты сразу (фильтр по label vm_account_id) — /select/multitenant/prometheus.
+  url: "https://vm.example.com/select/multitenant/prometheus"
+
+  # Bearer-токен или basic auth — выберите одно.
+  # Лучше прокинуть через переменную окружения, не хранить в файле.
+  auth:
+    bearer_token: "${VM_BEARER_TOKEN}"
+    # basic_user: "readonly"
+    # basic_password: "${VM_BASIC_PASSWORD}"
+
+  # Дополнительные заголовки (например AccountID для кластера VM)
+  headers:
+    # AccountID: "0"
+    # ProjectID: "0"
+
+  # Таймауты HTTP
+  timeout_seconds: 15
+
+  # Лимиты на ответы — защита от вытаскивания high-cardinality
+  limits:
+    # Жёсткий предел одного запроса к VM/Grafana proxy.
+    request_timeout_seconds: 15
+    max_timeout_seconds: 30
+    # Максимальное окно range-запроса и допустимый шаг.
+    max_range_seconds: 2592000  # 30d
+    min_step_seconds: 15
+    max_step_seconds: 3600       # 1h
+    max_points_requested: 100000
+    max_series_returned: 30        # сколько временных рядов вернуть в одном ответе
+    max_points_per_series: 120     # точек на ряд при mode=raw
+    max_label_values_returned: 500
+    max_response_bytes: 262144     # 256 KiB после redaction
+    summarize_by_default: true     # по умолчанию возвращать min/max/p50/p95/p99 вместо точек
+    reject_unaggregated: true      # отклонять PromQL без агрегации поверх high-cardinality
+
+# -----------------------------------------------------------------------------
+#  VictoriaLogs — источник логов (LogsQL)
+# -----------------------------------------------------------------------------
+victorialogs:
+  # URL VictoriaLogs (по умолчанию слушает на :9428)
+  url: "https://vlogs.example.com"
+
+  # Тенанты на прямом маршруте: tools принимают tenant (имя или AccountID),
+  # MCP ставит заголовки AccountID / ProjectID: 0. Без карты заголовки не ставятся.
+  default_tenant: "prod"
+  tenants:
+    prod: 100
+    dev: 0
+
+  # Аутентификация
+  auth:
+    bearer_token: "${VL_BEARER_TOKEN}"
+    # basic_user: "readonly"
+    # basic_password: "${VL_BASIC_PASSWORD}"
+
+  headers: {}
+
+  timeout_seconds: 30
+
+  # Лимиты
+  limits:
+    request_timeout_seconds: 30       # жёсткий timeout одного запроса
+    max_timeout_seconds: 60
+    max_lines_returned: 500          # потолок строк в ответе
+    default_limit: 100               # лимит, если пользователь не указал
+    default_mode: "patterns"         # patterns (агрегация) или lines (сырые)
+    pattern_cluster_top: 30          # сколько топ-паттернов возвращать
+    max_query_window_hours: 24       # запрет окон шире 24 часов
+    max_streams_returned: 200
+    max_response_bytes: 262144       # 256 KiB после redaction
+    max_input_bytes: 2097152         # 2 MiB NDJSON на один запрос
+
+# -----------------------------------------------------------------------------
+#  Obsidian vault — локальный knowledge base (runbooks, постмортемы)
+#
+#  Главный смысл: вместо того чтобы Claude каждый раз дёргал прод и платил
+#  токенами за чтение логов/метрик, он сначала ищет в локальной базе
+#  знаний. Хорошо написанный runbook на 500 токенов экономит 10-50K
+#  токенов диагностики.
+# -----------------------------------------------------------------------------
+obsidian:
+  # Путь к корню vault. Если не задан — Obsidian-tools отключаются.
+  # Поддерживает ~ для домашней папки.
+  vault_path: "~/Documents/Obsidian/SRE"
+
+  # Путь к kb.py для kb_search / kb_list. По умолчанию — tools/kb.py этого
+  # репозитория agent-harness (../../tools/kb.py относительно mcp/sre-toolbox).
+  # Корень базы знаний kb.py берёт из конфига agent-harness (paths.kb_root,
+  # ~/.config/agent-harness/config.toml или AGENT_HARNESS_CONFIG).
+  # kb_tool: "~/Projects/agent-harness/tools/kb.py"
+
+  # Разрешить ли Claude записывать новые заметки (obsidian_append_finding).
+  # По умолчанию выключено — vault только для чтения.
+  allow_writes: false
+
+  # Опционально: какие подпапки vault использовать как источник.
+  # Если пусто — индексируется весь vault.
+  # include_folders:
+  #   - "runbooks"
+  #   - "postmortems"
+  #   - "services"
+
+  limits:
+    max_note_chars: 8000      # максимум символов при чтении одной заметки
+    snippet_chars: 400        # длина фрагмента в результатах поиска
+    max_search_results: 20    # потолок для top_k в obsidian_search
+
+# -----------------------------------------------------------------------------
+#  Jira Server / Data Center — задачи, JQL, спринты, доски
+#
+#  Аутентификация — Personal Access Token (PAT), который выдаётся в
+#  профиле Jira: Profile -> Personal Access Tokens -> Create token.
+#  PAT передаётся как Bearer-токен. Альтернатива — basic_user/password.
+# -----------------------------------------------------------------------------
+jira:
+  # Базовый URL без слеша в конце, например https://jira.example.com
+  # (НЕ atlassian.net — это Cloud, для Server/DC указывайте свой self-hosted).
+  url: "https://jira.example.com"
+
+  auth:
+    # Личный токен — рекомендуемый способ (Bearer).
+    bearer_token: "${JIRA_PAT}"
+    # Альтернатива:
+    # basic_user: "jdoe"
+    # basic_password: "${JIRA_PASSWORD}"
+
+  # Дополнительные заголовки (например для прокси).
+  headers: {}
+
+  timeout_seconds: 20
+
+  # Версия REST API. Для Server/DC обычно "2"; некоторые инстансы поддерживают "latest".
+  api_version: "2"
+
+  limits:
+    # Потолок задач в одном ответе (search/sprint_issues).
+    max_issues_returned: 50
+    # Если у issue есть огромный description / comments — обрезаем.
+    max_field_chars: 4000
+    # Сколько последних комментариев показывать в jira_get_issue (0 — отключить).
+    max_comments_in_issue: 5
+    # Список полей по умолчанию для search/get (минимизирует ответ).
+    default_fields:
+      - "summary"
+      - "status"
+      - "priority"
+      - "assignee"
+      - "reporter"
+      - "issuetype"
+      - "labels"
+      - "components"
+      - "created"
+      - "updated"
+      - "duedate"
+      - "fixVersions"
+
+  # Защита от случайной массовой записи: создание/обновление/transitions/comments
+  # разрешены только если allow_writes=true. По умолчанию — read-only.
+  allow_writes: false
+
+  # Allowlist по project keys — если задан, чтение/запись разрешены только
+  # для перечисленных проектов. Пустой список = без ограничения.
+  allow_projects: []
+    # - "OPS"
+    # - "INFRA"
+
+# -----------------------------------------------------------------------------
+#  Confluence Server / Data Center — страницы, CQL-поиск
+#
+#  Используется для чтения общих документов команды: квартальные планы,
+#  архитектурные решения, описания процессов. Тот же PAT, что у Jira,
+#  обычно НЕ подходит — Confluence держит токены отдельно.
+# -----------------------------------------------------------------------------
+confluence:
+  # Базовый URL без слеша в конце.
+  url: "https://confluence.example.com"
+
+  auth:
+    bearer_token: "${CONFLUENCE_PAT}"
+    # basic_user: "jdoe"
+    # basic_password: "${CONFLUENCE_PASSWORD}"
+
+  headers: {}
+
+  timeout_seconds: 20
+
+  limits:
+    # Максимум символов тела страницы (для экономии токенов).
+    max_page_chars: 12000
+    # Максимум результатов в search.
+    max_search_results: 25
+    # Максимум child-страниц в одном ответе.
+    max_children: 50
+
+  # Защита от случайной записи: confluence_create_page / confluence_update_page
+  # разрешены только если allow_writes=true. По умолчанию — read-only.
+  allow_writes: false
+
+  # Allowlist по space keys — если задан, запись разрешена только в
+  # перечисленные space'ы. Чтение не ограничивается этим списком.
+  # Пустой список = без ограничения.
+  allow_spaces: []
+    # - "ARCH"
+    # - "TEAM"
+
+  # Закладки — быстрые алиасы для частых страниц.
+  # Используются в инструменте confluence_get_bookmark(name).
+  #
+  # Если у команды есть единая страница квартального планирования из которой
+  # рождаются эпики — пропиши её как 'quarterly_planning'. Скилл
+  # skills/jira-planning-epic читает её через confluence_get_bookmark.
+  bookmarks: {}
+    # quarterly_planning: "123456789"   # page id из URL Confluence
+    # quarterly_plan:
+    #   space: "TEAM"
+    #   title: "Quarterly Plan Q3 2026"
+    # # либо напрямую по id:
+    # arch_decisions: "1234567"
+
+# -----------------------------------------------------------------------------
+#  GitLab Server / SaaS — проекты, merge requests, файлы, поиск по коду
+#
+#  Используется для чтения и комментирования MR, поиска по коду через REST API.
+#  Personal Access Token нужен отдельный (Profile → Access Tokens → Create,
+#  scope: api для записи или read_api для read-only). Тот же PAT, что у
+#  Jira/Confluence, не подойдёт — GitLab держит токены у себя.
+# -----------------------------------------------------------------------------
+gitlab:
+  # Базовый URL инстанса без слеша в конце. Для self-hosted — внутренний адрес,
+  # для SaaS — https://gitlab.com.
+  url: "https://gitlab.example.com"
+
+  auth:
+    bearer_token: "${GITLAB_PAT}"
+
+  headers: {}
+
+  # Проверка TLS-сертификата. По умолчанию true. Для внутренних self-signed
+  # инстансов (например, корпоративный GitLab с собственным CA) — false.
+  # Эта опция работает для любой секции (jira / confluence / mattermost /
+  # grafana и т.д.) — везде один и тот же ключ.
+  # verify_ssl: false
+
+  timeout_seconds: 20
+
+  limits:
+    # Обрезка длинных строк (описания MR, тела файла, текст diff'а).
+    max_field_chars: 4000
+    # Максимум проектов в одном ответе на list.
+    max_projects_returned: 50
+    # Максимум MR'ов в одном ответе на list.
+    max_mrs_returned: 50
+    # Максимум результатов в gitlab_search.
+    max_search_results: 30
+    # Максимум символов содержимого файла в gitlab_get_file.
+    max_file_chars: 12000
+    # Максимум файлов в diff'е MR (gitlab_get_mr with_diff=true).
+    max_diff_files: 25
+
+  # Защита от случайной записи: gitlab_create_mr_note и прочие write-тулы
+  # разрешены только если allow_writes=true. По умолчанию — read-only.
+  allow_writes: false
+
+  # Allowlist по project paths — если задан, операции разрешены только
+  # для перечисленных проектов (полный путь group/subgroup/project).
+  # Пустой список = без ограничения.
+  allow_projects: []
+    # - "infra/platform"
+    # - "sre/runbooks"
+
+# -----------------------------------------------------------------------------
+#  Mattermost — командный мессенджер
+#
+#  Используется для чтения пермалинок (часто прилетают как контекст обсуждения
+#  инцидента), поиска по сообщениям, отправки уведомлений из инструментов.
+#  Personal Access Token: System Console -> Integrations -> Personal Access
+#  Tokens (или Account Settings -> Security, если включено для пользователей).
+# -----------------------------------------------------------------------------
+mattermost:
+  # Базовый URL инстанса без слеша в конце. Пример: 'https://chat.example.com'.
+  url: "https://chat.example.com"
+
+  auth:
+    bearer_token: "${MATTERMOST_PAT}"
+
+  headers: {}
+
+  timeout_seconds: 20
+
+  limits:
+    # Обрезка длинных строк (тело поста, props).
+    max_field_chars: 4000
+    # Максимум постов в треде / списке за один ответ (Mattermost API максимум 200).
+    max_posts_returned: 200
+    # Максимум результатов в search.
+    max_search_results: 30
+    # Максимум каналов в одном ответе на list.
+    max_channels_returned: 100
+
+  # Защита от случайной записи: mm_create_post разрешён только если
+  # allow_writes=true. По умолчанию — read-only.
+  allow_writes: false
+
+  # Allowlist по team names — если задан, операции разрешены только в
+  # перечисленных командах. Пустой список = без ограничения.
+  allow_teams: []
+    # - "ops"
+
+  # Allowlist по channel id для записи (mm_create_post). Если задан —
+  # постить можно только в эти каналы. Пустой список = без ограничения
+  # (рискованно: можно случайно написать куда угодно).
+  allow_channels: []
+    # - "abc123def456..."
+
+# -----------------------------------------------------------------------------
+#  Grafana — дашборды, datasources, аннотации, alert rules
+#
+#  Используется для поиска дашбордов по имени (часто нужно из алертов /
+#  обсуждений), чтения метаданных дашборда, инспекции datasources, чтения
+#  релиз-аннотаций.
+#  Токен — Service Account Token (новый способ) или Legacy API Key:
+#    UI → Administration → Service accounts → New token. Роль Viewer
+#    достаточна для всех read-тулов.
+# -----------------------------------------------------------------------------
+grafana:
+  # Одна Grafana. Базовый URL без слеша в конце.
+  url: "https://grafana.example.com"
+  # Для внутренних сертификатов — CA bundle (путь от config.yaml) вместо отключения TLS.
+  # verify_ssl: "certs/ca-bundle.pem"
+  auth:
+    bearer_token: "${GRAFANA_TOKEN}"
+  headers: {}
+
+  timeout_seconds: 20
+
+  limits:
+    # Обрезка длинных строк (описания дашбордов, текст аннотаций, query).
+    max_field_chars: 4000
+    # Максимум дашбордов в одном ответе на search.
+    max_dashboards_returned: 50
+    # Максимум panel'ей, которые отдаём из одного дашборда (с компактом).
+    max_panels_returned: 100
+    # Максимум аннотаций за один запрос.
+    max_annotations_returned: 200
+    # Максимум alert rules в ответе.
+    max_alert_rules_returned: 100
+
+  # Write-тулов пока нет, но поле есть для совместимости с паттерном.
+  allow_writes: false
+
+# -----------------------------------------------------------------------------
+#  Безопасность: маскировка чувствительных данных в ответах tools
+# -----------------------------------------------------------------------------
+redaction:
+  enabled: true
+
+  # Регулярки для замены на <REDACTED>. Применяются ко всем строкам ответа.
+  patterns:
+    - name: "aws_access_key"
+      regex: "AKIA[0-9A-Z]{16}"
+    - name: "jwt_token"
+      regex: "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"
+    - name: "bearer_token"
+      regex: "(?i)bearer\\s+[A-Za-z0-9._-]{20,}"
+    - name: "private_key_block"
+      regex: "-----BEGIN [A-Z ]+PRIVATE KEY-----"
+    - name: "email"
+      regex: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+    - name: "card_number"
+      regex: "\\b(?:\\d[ -]?){13,19}\\b"
+    - name: "russian_inn"
+      regex: "\\b\\d{10}\\b|\\b\\d{12}\\b"
+    - name: "russian_snils"
+      regex: "\\b\\d{3}-\\d{3}-\\d{3} \\d{2}\\b"
+    - name: "internal_host"
+      regex: "[A-Za-z0-9-]+\\.(internal|corp|local)\\b"
+
+# -----------------------------------------------------------------------------
+#  Безопасность: токенизация имён сервисов перед отправкой Claude
+#  (опционально — Claude увидит service-A вместо реального имени)
+#  НЕ РЕАЛИЗОВАНО: секция зарезервирована, сервер её пока не читает.
+# -----------------------------------------------------------------------------
+tokenization:
+  enabled: false
+  # Если включено — внутренние имена сервисов из этого списка
+  # заменяются на алиасы в ответах. Маппинг хранится в памяти на время сессии.
+  services:
+    # - "payment-service"
+    # - "billing-api"
+    # - "auth-prod"
+
+# -----------------------------------------------------------------------------
+#  Allowlist — какие namespace / job можно запрашивать
+# -----------------------------------------------------------------------------
+allowlist:
+  # Если задан — только эти значения label `job` или `service` разрешены
+  # в PromQL/LogsQL. Пустой список = без ограничения.
+  services: []
+    # - "checkout-api"
+    # - "payment-service"
+  namespaces: []
+    # - "production"
+    # - "staging"

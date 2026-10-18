@@ -38,7 +38,7 @@ class Config:
     wiki_space: str = ""
     chat_url: str = ""
     alert_channels: tuple[str, ...] = ()
-    mcp_hub: str = "ops-toolbox"
+    mcp_hub: str = "sre-toolbox"
     handoff_thresholds: tuple[int, ...] = (50, 75)
     autocommit: bool = True
     raw: dict = field(default_factory=dict, compare=False, repr=False)

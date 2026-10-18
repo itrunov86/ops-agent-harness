@@ -4,7 +4,16 @@
 (`jira_get_issue`). Так они работают с любым набором MCP-серверов. У каждого шага есть запасной путь — CLI или
 `kb.py`, — поэтому отсутствие сервера сужает возможности, но не ломает скилл.
 
-`mcp.hub` в конфиге — имя вашего основного сервера интеграций: `kb-scout` запрещает его пишущие инструменты по
+В комплекте два сервера:
+
+- **`mcp/sre-toolbox`** — интеграции для дежурного SRE: Alertmanager, VictoriaMetrics, VictoriaLogs, Jira,
+  Confluence, GitLab, Mattermost, Grafana и база знаний (`kb_search`, `kb_list`, `obsidian_*`). Ответы агрегированы
+  (шаблоны логов, сводка метрик), запись в каждую систему выключена по умолчанию и включается в `config.yaml`.
+  Подготовка — `./harness mcp`, подключение — `./harness mcp --register`; подробности —
+  [mcp/sre-toolbox/README.md](../mcp/sre-toolbox/README.md).
+- **`tools/kb_mcp.py`** — только поиск по базе, без зависимостей.
+
+`mcp.hub` в конфиге — имя вашего основного сервера интеграций (по умолчанию `sre-toolbox`): `kb-scout` запрещает его пишущие инструменты по
 шаблону `mcp__<hub>__<tool>`. Если интеграции разнесены по нескольким серверам, допишите их пишущие инструменты в
 `disallowedTools` агента `agents/claude/kb-scout.md` (в репозитории) и переустановите.
 
@@ -24,7 +33,7 @@
 | IaC/GitOps только на чтение | terraform-terragrunt-review, helm-argocd-gitops, vault-ops | `terraform_plan_summary`, `argocd_app_diff`, `helm_template_summary`, `vault_policy_read` | `terraform plan`, `argocd app diff`, `helm template`, `vault policy read` |
 | Документация библиотек | versioned-docs | Context7 `resolve-library-id`, `query-docs` | официальный сайт |
 
-## Где взять серверы
+## Если систем нет в sre-toolbox
 
 Публичные серверы под эти возможности есть почти у всех популярных систем: Atlassian (Jira/Confluence), GitLab,
 Grafana, VictoriaMetrics, Prometheus, Kubernetes, Context7. Выбирайте серверы, которые:
@@ -33,8 +42,8 @@ Grafana, VictoriaMetrics, Prometheus, Kubernetes, Context7. Выбирайте �
 - умеют агрегировать (сводка метрик вместо сырых точек, шаблоны логов вместо тысяч строк) — это экономит контекст;
 - разделяют чтение и запись, чтобы запись можно было выключить или запретить субагенту.
 
-Часто выгоднее один свой сервер-«хаб» под вашу организацию (как `mcp.hub`): единая аутентификация, общий
-«write gate» — список разрешённых пишущих действий, агрегация ответов под размер контекста.
+Новую систему проще добавить модулем в `mcp/sre-toolbox/tools/` по образцу соседних: единая аутентификация, общий
+«write gate» и агрегация ответов уже есть.
 
 ## Поиск по базе как MCP
 

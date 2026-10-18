@@ -50,9 +50,11 @@ cd ~/Projects/agent-harness
 ### После установки
 
 1. **Codex:** один раз выполнить `/hooks` и доверить новые хуки — без этого Codex их не запускает.
-2. **MCP-поиск по базе (по желанию):** `install` печатает команду для Claude Code и блок для `~/.codex/config.toml`.
-   Без него агенты ищут через `python3 <harness>/tools/kb.py search`.
-3. **MCP-серверы интеграций:** трекер, вики, чат, метрики — [mcp.md](mcp.md).
+2. **MCP-сервер sre-toolbox:** `./harness mcp` создаёт `mcp/sre-toolbox/.venv`, ставит зависимости и кладёт
+   `config.yaml` из примера — впишите адреса своих систем и токены по `mcp/sre-toolbox/docs/install.md`.
+   `./harness mcp --register` подключает его к Claude Code (`claude mcp add`) и Codex (`~/.codex/config.toml`),
+   сделав бэкап. Без MCP агенты ищут по базе через `python3 <harness>/tools/kb.py search`.
+3. **Другие MCP-серверы** — [mcp.md](mcp.md).
 4. **Проверка:** открыть новый чат в `work_dir`, спросить «какие у тебя скиллы?» и «найди в базе payments».
 
 ## Обновление
