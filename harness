@@ -1,0 +1,471 @@
+#!/usr/bin/env python3
+"""
+harness — установка и проверка agent-harness для Claude Code и Codex.
+
+    ./harness init [--defaults] [--force]   # создать ~/.config/agent-harness/config.toml (спросит значения)
+    ./harness install [--dry-run] [--force] # разложить скиллы, агентов, правила, хуки; создать базу знаний
+    ./harness doctor                        # проверить установку и конфиг
+    ./harness uninstall [--dry-run]         # убрать установленное harness (база знаний и бэкапы остаются)
+    ./harness render <file>                 # показать файл репозитория с подставленными значениями
+
+install идемпотентен: повторный запуск обновляет то, что ставил harness, и не трогает чужое. Файл, созданный не
+harness (свой AGENTS.md, свой скилл с тем же именем), не перезаписывается: рядом кладётся `<имя>.harness-new`, а с
+--force старый уходит в ~/.agents/backups/<время>/. Перед правкой settings.json/hooks.json — всегда бэкап.
+Только стандартная библиотека, Python 3.11+.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE / "tools"))
+import harness_config  # noqa: E402
+
+HOME = Path.home()
+MARK = "agent-harness"                       # маркер «файл поставлен harness»
+MANAGED_FILE = ".harness-managed"            # лежит в каждой поставленной папке скилла
+SKILLS_DIR = HOME / ".agents" / "skills"     # общий каталог скиллов: его читает Codex, у Claude — симлинки
+CLAUDE, CODEX = HOME / ".claude", HOME / ".codex"
+STAMP = time.strftime("%Y%m%d-%H%M%S")
+BACKUP = HOME / ".agents" / "backups" / STAMP
+PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".toml", ".json", ".txt", ".tsv", ".wiki", ".py", ".sh", ""}
+
+CLAUDE_EVENTS = ["UserPromptSubmit", "SessionStart", "PreToolUse", "PostToolUse", "Stop", "PostCompact"]
+CODEX_EVENTS = ["UserPromptSubmit", "SessionStart", "PreToolUse", "PostToolUse", "Stop"]
+
+
+class Plan:
+    """Собирает действия; в --dry-run только печатает их."""
+
+    def __init__(self, dry: bool, force: bool):
+        self.dry, self.force, self.notes, self.conflicts = dry, force, [], []
+
+    def say(self, msg: str) -> None:
+        self.notes.append(msg)
+        print(("  [dry-run] " if self.dry else "  ") + msg)
+
+    def backup(self, path: Path) -> None:
+        if path.exists() or path.is_symlink():
+            dest = BACKUP / path.relative_to(HOME)
+            self.say(f"бэкап {path} → {dest}")
+            if not self.dry:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, dest) if path.is_file() else shutil.copytree(path, dest, symlinks=True)
+
+
+# ----------------------------------------------------------------------------------------------------------
+# Подстановки
+# ----------------------------------------------------------------------------------------------------------
+
+def render_text(text: str, values: dict[str, str]) -> tuple[str, set[str]]:
+    missing: set[str] = set()
+
+    def sub(m: re.Match) -> str:
+        if m.group(1) in values:
+            return values[m.group(1)]
+        missing.add(m.group(1))
+        return m.group(0)
+
+    return PLACEHOLDER.sub(sub, text), missing
+
+
+def render_tree(src: Path, dst: Path, values: dict[str, str]) -> set[str]:
+    missing: set[str] = set()
+    for f in sorted(src.rglob("*")):
+        if any(part.startswith(".git") and part != ".gitkeep" for part in f.relative_to(src).parts):
+            continue
+        out = dst / f.relative_to(src)
+        if f.is_dir():
+            out.mkdir(parents=True, exist_ok=True)
+            continue
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if f.suffix in TEXT_SUFFIXES:
+            text, miss = render_text(f.read_text(encoding="utf-8"), values)
+            missing |= miss
+            out.write_text(text, encoding="utf-8")
+        else:
+            shutil.copy2(f, out)
+    return missing
+
+
+# ----------------------------------------------------------------------------------------------------------
+# Установка частей
+# ----------------------------------------------------------------------------------------------------------
+
+def skill_sources(cfg: harness_config.Config) -> list[Path]:
+    skills = cfg.raw.get("skills", {})
+    exclude = set(skills.get("exclude", []))
+    roots = [HERE / "skills"] + ([HERE / "team-skills"] if skills.get("team", True) else [])
+    return [d for r in roots if r.exists() for d in sorted(r.iterdir())
+            if (d / "SKILL.md").exists() and d.name not in exclude]
+
+
+def is_managed_dir(path: Path) -> bool:
+    return (path / MANAGED_FILE).exists()
+
+
+def install_skills(cfg, values, plan: Plan, manifest: dict) -> None:
+    print("Скиллы →", SKILLS_DIR)
+    for src in skill_sources(cfg):
+        dst = SKILLS_DIR / src.name
+        if (dst.exists() or dst.is_symlink()) and not is_managed_dir(dst):
+            if not plan.force:
+                plan.conflicts.append(f"скилл {dst} создан не harness — пропущен (--force: бэкап и замена)")
+                continue
+            plan.backup(dst)
+        plan.say(f"скилл {src.name}")
+        if not plan.dry:
+            if dst.is_symlink() or dst.is_file():
+                dst.unlink()
+            elif dst.exists():
+                shutil.rmtree(dst)
+            missing = render_tree(src, dst, values)
+            (dst / MANAGED_FILE).write_text(f"{MARK}: {src.relative_to(HERE)}\n", encoding="utf-8")
+            if missing:
+                plan.conflicts.append(f"в {src.name} нет значений для: {', '.join(sorted(missing))}")
+        manifest["skills"].append(str(dst))
+        if cfg.raw.get("agents", {}).get("claude", True):
+            link = CLAUDE / "skills" / src.name
+            if link.is_symlink() and link.resolve() == dst.resolve():
+                pass
+            elif link.exists() or link.is_symlink():
+                if not plan.force:
+                    plan.conflicts.append(f"{link} уже есть и указывает не на {dst} — пропущен")
+                    continue
+                plan.backup(link)
+                if not plan.dry:
+                    shutil.rmtree(link) if link.is_dir() and not link.is_symlink() else link.unlink()
+            if not link.is_symlink():
+                plan.say(f"симлинк {link} → {dst}")
+                if not plan.dry:
+                    link.parent.mkdir(parents=True, exist_ok=True)
+                    link.symlink_to(dst)
+            manifest["links"].append(str(link))
+
+
+def write_managed_file(src: Path, dst: Path, values, plan: Plan, manifest: dict, key: str = "files") -> None:
+    text, missing = render_text(src.read_text(encoding="utf-8"), values)
+    if missing:
+        plan.conflicts.append(f"в {src.relative_to(HERE)} нет значений для: {', '.join(sorted(missing))}")
+    if dst.exists():
+        current = dst.read_text(encoding="utf-8", errors="ignore")
+        if current == text:
+            manifest[key].append(str(dst))
+            return
+        if MARK not in current and str(dst) not in previous_manifest().get(key, []):
+            if not plan.force:
+                new = dst.with_name(dst.name + ".harness-new")
+                plan.conflicts.append(f"{dst} создан не harness — новая версия в {new}; сравни и перенеси, "
+                                      f"или запусти с --force")
+                if not plan.dry:
+                    new.write_text(text, encoding="utf-8")
+                return
+        plan.backup(dst)
+    plan.say(f"{dst}")
+    if not plan.dry:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(text, encoding="utf-8")
+    manifest[key].append(str(dst))
+
+
+def install_agents_and_rules(cfg, values, plan: Plan, manifest: dict) -> None:
+    agents = cfg.raw.get("agents", {})
+    print("Правила и агенты")
+    if agents.get("codex", True) or agents.get("claude", True):
+        # общий источник правил — ~/.codex/AGENTS.md, Claude подключает его импортом
+        write_managed_file(HERE / "templates/global/AGENTS.md", CODEX / "AGENTS.md", values, plan, manifest)
+    if agents.get("claude", True):
+        write_managed_file(HERE / "templates/global/CLAUDE.md", CLAUDE / "CLAUDE.md", values, plan, manifest)
+        for f in sorted((HERE / "agents/claude").glob("*.md")):
+            write_managed_file(f, CLAUDE / "agents" / f.name, values, plan, manifest)
+    if agents.get("codex", True):
+        for f in sorted((HERE / "agents/codex").glob("*.toml")):
+            write_managed_file(f, CODEX / "agents" / f.name, values, plan, manifest)
+        for f in sorted((HERE / "agents/codex/profiles").glob("*.toml")):
+            write_managed_file(f, CODEX / f.name, values, plan, manifest)
+
+
+def hook_commands(cfg) -> dict[str, list[tuple[str, int]]]:
+    py = "python3 -I"
+    session = (f"{py} {HERE / 'tools/agent_session.py'} hook", 5)
+    kb = (f"{py} {HERE / 'tools/kb.py'} hook", 10)
+    want = {e: [session] for e in CLAUDE_EVENTS}
+    want["Stop"] = [(session[0], 20)]
+    if cfg.raw.get("hooks", {}).get("kb_context", True):
+        want["UserPromptSubmit"] = [kb, session]
+    return want
+
+
+def merge_hooks(path: Path, events: list[str], cfg, plan: Plan, manifest: dict) -> None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except ValueError:
+        plan.conflicts.append(f"{path} — не JSON, хуки не добавлены")
+        return
+    hooks = data.setdefault("hooks", {})
+    want = hook_commands(cfg)
+    changed = False
+    for event in events:
+        groups = hooks.setdefault(event, [])
+        present = {h.get("command") for g in groups for h in g.get("hooks", [])}
+        for command, timeout in want.get(event, []):
+            if command not in present:
+                groups.append({"hooks": [{"type": "command", "command": command, "timeout": timeout}]})
+                plan.say(f"хук {event} в {path}")
+                changed = True
+    manifest["hooks"].append(str(path))
+    if changed:
+        plan.backup(path)
+        if not plan.dry:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def install_kb(cfg, values, plan: Plan) -> None:
+    kb = cfg.kb_root
+    print("База знаний →", kb)
+    if kb.exists() and any(kb.iterdir()):
+        plan.say(f"{kb} уже есть — не трогаю (шаблон: {HERE / 'templates/kb'})")
+        return
+    plan.say(f"создаю базу знаний из шаблона, git init, первый коммит")
+    if plan.dry:
+        return
+    render_tree(HERE / "templates/kb", kb, values)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(kb)], check=True)
+    subprocess.run(["git", "-C", str(kb), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(kb), "commit", "-q", "-m", "init knowledge base from agent-harness"],
+                   check=False)
+
+
+def previous_manifest() -> dict:
+    try:
+        return json.loads((harness_config.load().state_dir / "harness-manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+# ----------------------------------------------------------------------------------------------------------
+# Команды
+# ----------------------------------------------------------------------------------------------------------
+
+def mcp_hint() -> str:
+    server = HERE / "tools/kb_mcp.py"
+    return (f"  claude mcp add --scope user kb -- python3 -I {server}\n"
+            f"  # в ~/.codex/config.toml:\n  [mcp_servers.kb]\n  command = \"python3\"\n"
+            f"  args = [\"-I\", \"{server}\"]")
+
+
+def mcp_registered() -> dict[str, bool]:
+    try:
+        claude = "kb" in json.loads((HOME / ".claude.json").read_text(encoding="utf-8")).get("mcpServers", {})
+    except (OSError, ValueError):
+        claude = False
+    try:
+        codex = "[mcp_servers.kb]" in (CODEX / "config.toml").read_text(encoding="utf-8")
+    except OSError:
+        codex = False
+    return {"claude": claude, "codex": codex}
+
+
+def cmd_init(args) -> int:
+    path = harness_config.CONFIG_PATH
+    if path.exists() and not args.force:
+        print(f"{path} уже есть. Поправь его руками или запусти `harness init --force`.")
+        return 1
+    text = (HERE / "config.example.toml").read_text(encoding="utf-8")
+    if not args.defaults and sys.stdin.isatty():
+        print("Значения для конфига (Enter — оставить пример в скобках):")
+        for key in ("name", "kb_root", "work_dir", "code_root", "prefixes", "example", "project",
+                    "assignee", "url", "space", "hub"):
+            m = re.search(rf'(?m)^({key}\s*=\s*)(.+?)(\s+#.*)?$', text)
+            if not m:
+                continue
+            answer = input(f"  {key} [{m.group(2)}]: ").strip()
+            if answer:
+                value = answer if answer.startswith(("[", '"')) else json.dumps(answer, ensure_ascii=False)
+                if key == "prefixes" and not answer.startswith("["):
+                    value = json.dumps([p.strip() for p in answer.replace("|", ",").split(",") if p.strip()])
+                text = text[:m.start(2)] + value + text[m.end(2):]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    print(f"Записан {path}. Дальше: ./harness install --dry-run, затем ./harness install")
+    return 0
+
+
+def cmd_install(args) -> int:
+    if not harness_config.CONFIG_PATH.exists():
+        print(f"Нет конфига {harness_config.CONFIG_PATH}: сначала ./harness init")
+        return 1
+    cfg = harness_config.load()
+    values = cfg.placeholders()
+    plan = Plan(args.dry_run, args.force)
+    manifest = {"version": 1, "installed": STAMP, "skills": [], "links": [], "files": [], "hooks": []}
+    install_skills(cfg, values, plan, manifest)
+    install_agents_and_rules(cfg, values, plan, manifest)
+    print("Хуки")
+    agents = cfg.raw.get("agents", {})
+    if agents.get("claude", True):
+        merge_hooks(CLAUDE / "settings.json", CLAUDE_EVENTS, cfg, plan, manifest)
+    if agents.get("codex", True):
+        merge_hooks(CODEX / "hooks.json", CODEX_EVENTS, cfg, plan, manifest)
+    install_kb(cfg, values, plan)
+    if not plan.dry:
+        cfg.work_dir.mkdir(parents=True, exist_ok=True)
+        cfg.state_dir.mkdir(parents=True, exist_ok=True)
+        (cfg.state_dir / "harness-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1),
+                                                            encoding="utf-8")
+    for c in plan.conflicts:
+        print("  ! " + c)
+    print("\nГотово." if not plan.dry else "\nЭто был --dry-run, ничего не изменено.")
+    if not plan.dry:
+        print("Дальше: ./harness doctor; в Codex один раз /hooks → доверить новые хуки; чаты открывать из",
+              cfg.work_dir)
+        if not mcp_registered()["claude"] or not mcp_registered()["codex"]:
+            print("\nПоиск по базе как MCP-инструмент kb_search (один раз):\n" + mcp_hint())
+    return 1 if plan.conflicts and not plan.dry else 0
+
+
+def cmd_uninstall(args) -> int:
+    cfg = harness_config.load()
+    manifest = previous_manifest()
+    if not manifest:
+        print("Манифеста установки нет — нечего удалять.")
+        return 0
+    plan = Plan(args.dry_run, False)
+    for link in manifest.get("links", []):
+        p = Path(link)
+        if p.is_symlink():
+            plan.say(f"удаляю симлинк {p}")
+            if not plan.dry:
+                p.unlink()
+    for d in manifest.get("skills", []):
+        p = Path(d)
+        if is_managed_dir(p):
+            plan.backup(p)
+            plan.say(f"удаляю скилл {p}")
+            if not plan.dry:
+                shutil.rmtree(p)
+    for f in manifest.get("files", []):
+        p = Path(f)
+        if p.exists():
+            plan.backup(p)
+            plan.say(f"удаляю {p}")
+            if not plan.dry:
+                p.unlink()
+    marker = str(HERE / "tools")
+    for f in manifest.get("hooks", []):
+        p = Path(f)
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for event, groups in list(data.get("hooks", {}).items()):
+            for g in groups:
+                g["hooks"] = [h for h in g.get("hooks", []) if marker not in h.get("command", "")]
+            data["hooks"][event] = [g for g in groups if g.get("hooks")]
+            if not data["hooks"][event]:
+                del data["hooks"][event]
+        plan.backup(p)
+        plan.say(f"убираю хуки harness из {p}")
+        if not plan.dry:
+            p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if not plan.dry:
+        (cfg.state_dir / "harness-manifest.json").unlink(missing_ok=True)
+    print(f"\nБаза знаний {cfg.kb_root} и конфиг {harness_config.CONFIG_PATH} оставлены. Бэкапы: {BACKUP}")
+    return 0
+
+
+def cmd_doctor(_args) -> int:
+    ok = True
+
+    def check(cond: bool, good: str, bad: str) -> None:
+        nonlocal ok
+        print(("  OK   " if cond else "  FAIL ") + (good if cond else bad))
+        ok &= cond
+
+    print("agent-harness doctor")
+    check(sys.version_info >= (3, 11), f"Python {sys.version.split()[0]}", "нужен Python 3.11+")
+    cfg_exists = harness_config.CONFIG_PATH.exists()
+    check(cfg_exists, f"конфиг {harness_config.CONFIG_PATH}", f"нет конфига {harness_config.CONFIG_PATH}: ./harness init")
+    cfg = harness_config.load()
+    check((cfg.kb_root / ".git").exists(), f"база знаний — git: {cfg.kb_root}",
+          f"{cfg.kb_root} не git-репозиторий (./harness install создаст из шаблона)")
+    check(cfg.work_dir.exists(), f"папка чатов {cfg.work_dir}", f"нет папки чатов {cfg.work_dir}")
+    manifest = previous_manifest()
+    check(bool(manifest), f"установка от {manifest.get('installed', '?')}", "harness не установлен: ./harness install")
+    values = cfg.placeholders()
+    stale = []
+    for src in skill_sources(cfg):
+        dst = SKILLS_DIR / src.name / "SKILL.md"
+        want, _ = render_text((src / "SKILL.md").read_text(encoding="utf-8"), values)
+        if not dst.exists() or dst.read_text(encoding="utf-8") != want:
+            stale.append(src.name)
+    check(not stale, "скиллы совпадают с репозиторием", f"устарели или не стоят: {', '.join(stale)} — ./harness install")
+    leftovers = [str(p) for p in SKILLS_DIR.glob("*/SKILL.md") if is_managed_dir(p.parent)
+                 and PLACEHOLDER.search(p.read_text(encoding="utf-8"))]
+    check(not leftovers, "подстановки заполнены", f"остались {{{{…}}}} в: {', '.join(leftovers)}")
+    want = hook_commands(cfg)
+    for name, path, events in (("Claude", CLAUDE / "settings.json", CLAUDE_EVENTS),
+                               ("Codex", CODEX / "hooks.json", CODEX_EVENTS)):
+        if not cfg.raw.get("agents", {}).get(name.lower(), True):
+            continue
+        try:
+            hooks = json.loads(path.read_text(encoding="utf-8")).get("hooks", {})
+        except (OSError, ValueError):
+            hooks = {}
+        missing = [e for e in events for c, _ in want.get(e, [])
+                   if c not in {h.get("command") for g in hooks.get(e, []) for h in g.get("hooks", [])}]
+        check(not missing, f"хуки {name}", f"нет хуков {name}: {', '.join(sorted(set(missing)))}")
+    if (cfg.kb_root / ".git").exists():
+        res = subprocess.run([sys.executable, str(HERE / "tools/kb.py"), "lint"], capture_output=True, text=True)
+        check(res.returncode == 0, "kb.py lint", "kb.py lint: " + (res.stdout + res.stderr).strip()[-300:])
+    reg = mcp_registered()
+    for name in ("claude", "codex"):
+        if cfg.raw.get("agents", {}).get(name, True):
+            print(("  OK   " if reg[name] else "  --   ") + (f"MCP kb в {name}" if reg[name] else
+                  f"MCP kb не подключён в {name} (необязательно; есть CLI kb.py):\n{mcp_hint()}"))
+    for tool in ("git", "claude", "codex"):
+        found = shutil.which(tool)
+        print(("  OK   " if found else "  --   ") + (f"{tool}: {found}" if found else f"{tool} не найден в PATH"))
+    print("\nВсё в порядке." if ok else "\nЕсть проблемы — см. FAIL выше.")
+    return 0 if ok else 1
+
+
+def cmd_render(args) -> int:
+    text, missing = render_text((HERE / args.file).read_text(encoding="utf-8"), harness_config.load().placeholders())
+    sys.stdout.write(text)
+    if missing:
+        print(f"\n# нет значений для: {', '.join(sorted(missing))}", file=sys.stderr)
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(prog="harness", description="agent-harness для Claude Code и Codex")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("init", help="создать конфиг")
+    p.add_argument("--defaults", action="store_true", help="не спрашивать, взять пример")
+    p.add_argument("--force", action="store_true", help="перезаписать существующий конфиг")
+    p = sub.add_parser("install", help="установить или обновить")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--force", action="store_true", help="заменять чужие файлы (с бэкапом)")
+    p = sub.add_parser("uninstall", help="удалить установленное")
+    p.add_argument("--dry-run", action="store_true")
+    sub.add_parser("doctor", help="проверить установку")
+    p = sub.add_parser("render", help="показать файл с подстановками")
+    p.add_argument("file")
+    args = ap.parse_args(argv)
+    return {"init": cmd_init, "install": cmd_install, "uninstall": cmd_uninstall,
+            "doctor": cmd_doctor, "render": cmd_render}[args.cmd](args)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Свернуть находки в хабы"
+  short_description: "Обновить состояние хабов Obsidian по свежим находкам"
+policy:
+  allow_implicit_invocation: false

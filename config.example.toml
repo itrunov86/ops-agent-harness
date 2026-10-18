@@ -1,0 +1,44 @@
+# agent-harness: конфиг одной машины. Скопируй в ~/.config/agent-harness/config.toml
+# (или запусти `./harness init` — он спросит значения) и выполни `./harness install`.
+# Секретов здесь нет и не должно быть: токены MCP-серверов живут в их собственных конфигах или Keychain.
+
+[org]
+name = "Acme"                         # короткое имя организации — в шапке правил агентов
+
+[paths]
+kb_root   = "~/work/docs"             # база знаний: git-репозиторий, он же Obsidian vault
+work_dir  = "~/work/chats"            # общая папка: из неё открываются все чаты агентов
+code_root = "~/work/git"              # необязательно: где лежат рабочие репозитории (для agent_bench)
+reports_dir = "~/work/reports"        # отчёты agent_bench и прочие выгрузки
+state_dir = "~/.agents/state"         # служебное состояние хуков (привязки чатов, автокоммит)
+
+[tracker]
+prefixes   = ["OPS", "INC"]           # префиксы ключей задач; по ним хуки узнают задачу в сообщении
+example    = "OPS-1234"
+project    = "OPS"                    # куда агент заводит задачу, если ключа нет
+issue_type = "Task"
+assignee   = "jdoe"                   # логин исполнителя по умолчанию
+url        = "https://jira.example.com"
+
+[wiki]
+space = "OPS"                         # пространство вики для статей дежурства и постмортемов
+
+[chat]
+url = "https://chat.example.com"      # для ссылок на треды
+alert_channels = ["alerts", "infra-alerts"]
+
+[mcp]
+hub = "ops-toolbox"                   # имя основного MCP-сервера интеграций (см. docs/mcp.md)
+
+[agents]
+claude = true                         # ставить скиллы, агентов и хуки для Claude Code
+codex  = true                         # ... и для Codex
+
+[skills]
+team = true                           # ставить шаблоны командных процессов из team-skills/
+exclude = []                          # имена скиллов, которые не нужны, например ["yandex-cloud-devops"]
+
+[hooks]
+handoff_thresholds = [50, 75]         # на каком заполнении контекста (%) просить обновить журнал
+autocommit = true                     # коммитить правки агента в kb_root в конце каждого ответа
+kb_context = true                     # подмешивать в запрос найденные по ключам задач документы

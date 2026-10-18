@@ -1,0 +1,50 @@
+# Дефолты скилла postmortem. Меняются обычным изменением репозитория, не в рантайме.
+# Явные слова пользователя в чате важнее дефолта.
+
+wiki:
+  space: "{{WIKI_SPACE}}"
+
+  # Корневая страница раздела «Разборы инцидентов». Пусто — скилл предложит создать раздел
+  # из templates/root_page.wiki под home_parent_id (после подтверждения).
+  root_page_id: ""
+  root_page_title: "Разборы инцидентов"
+  home_parent_id: ""
+
+  # Имя страницы разбора: {date} — дата инцидента YYYY-MM-DD, {slug} — короткое описание.
+  incident_title_pattern: "INC-{date} {slug}"
+
+  # Необязательные ссылки на ваши страницы (URL). Пусто — ссылка не попадает в разбор.
+  related_pages:
+    severity: ""   # уровни критичности
+    sla: ""        # SLA и приоритеты
+    oncall: ""     # регламент дежурств
+
+  # Шкала критичности. Замени на свою.
+  severity_levels:
+    Sev1: "Полная недоступность прода или потеря данных"
+    Sev2: "Серьёзная деградация ключевого сервиса"
+    Sev3: "Частичная деградация, есть обходной путь"
+    Sev4: "Мелкая проблема без заметного влияния"
+
+# Часовой пояс хронологии, например "UTC" или "UTC+3".
+timezone: "UTC"
+
+tracker:
+  project_key: "{{TRACKER_PROJECT}}"
+  incident_issue_type: "{{TRACKER_ISSUE_TYPE}}"
+  incident_priority: "High"
+  incident_labels:
+    - "from-agent"
+    - "incident"
+    - "postmortem"
+  default_assignee: "{{TRACKER_ASSIGNEE}}"
+  # Метки action items поверх стандартных меток tracker-story.
+  action_item_labels:
+    - "incident-followup"
+
+behavior:
+  confirm_before_create: true   # черновик и явное подтверждение перед каждой записью
+  min_action_items: 1           # разбор без единого действия — попросить сформулировать хотя бы одно
+
+# Action items создаются по шагам этого скилла.
+delegate_action_items_to: "tracker-story"

@@ -1,0 +1,26 @@
+h1. Проблема
+
+{problem}
+
+h1. План решения
+
+{plan}
+
+h1. Требования
+
+{requirements}
+
+h1. Критерии приёмки
+
+{acceptance_criteria}
+
+h2. Definition of Done
+
+{definition_of_done}
+
+h1. Ссылки
+
+{links}
+
+----
+_Задача заведена агентом по шаблону tracker-story._

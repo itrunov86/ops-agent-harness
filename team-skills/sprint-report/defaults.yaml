@@ -1,0 +1,27 @@
+# Дефолты скилла sprint-report. Меняются обычным изменением репозитория, не в рантайме.
+
+wiki:
+  space: "{{WIKI_SPACE}}"
+  # Раздел «Результаты спринтов» — родитель снимков и таблица спринтов. Пусто — спросить пользователя.
+  sprint_hub_page_id: ""
+  # Страница текущего квартала (quarterly-planning). Обновляй при смене квартала. Пусто — без привязки к целям.
+  quarter_page_id: ""
+
+tracker:
+  project_key: "{{TRACKER_PROJECT}}"
+  # Названия статусов вашего workflow.
+  done_statuses: ["Done"]
+  in_progress_statuses: ["In Progress", "In Review"]
+  # Постоянная метка «задача в активном спринте» (как в tracker-story). Пусто — не используется.
+  active_sprint_label: "current_sprint"
+
+sprint:
+  # label — метка sprint-YYYY-wWW на задачах; board — спринты доски трекера.
+  source: "label"
+  board_id: ""             # только для source: board
+  # Должны совпадать с tracker-story/defaults.yaml.
+  reference_start: ""      # YYYY-MM-DD, дата начала любого спринта
+  cadence_weeks: 2
+
+behavior:
+  confirm_before_create: true   # черновик и явное подтверждение перед записью в вики и трекер

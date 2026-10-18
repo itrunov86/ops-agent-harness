@@ -1,0 +1,7 @@
+interface:
+  display_name: "Daily Report"
+  short_description: "Ежедневный SRE/DevOps отчет"
+  default_prompt: "Use $daily-report to create today's SRE/DevOps daily report."
+
+policy:
+  allow_implicit_invocation: true

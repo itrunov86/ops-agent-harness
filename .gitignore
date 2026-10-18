@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.DS_Store
+# личный стоп-лист для scripts/check_sanitized.py: названия компании, домены, логины — не публикуется
+.sanitize-denylist

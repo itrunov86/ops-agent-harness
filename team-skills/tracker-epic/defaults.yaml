@@ -1,0 +1,29 @@
+# Дефолты скилла tracker-epic. Меняются обычным изменением репозитория, не в рантайме.
+# Страницы квартального планирования в вики настраиваются в quarterly-planning.
+
+tracker:
+  project_key: "{{TRACKER_PROJECT}}"
+  issue_type: "Epic"
+  child_issue_type: "{{TRACKER_ISSUE_TYPE}}"
+  priority: "Medium"
+  default_assignee: "{{TRACKER_ASSIGNEE}}"   # пусто — не назначать
+
+  labels:
+    - "from-agent"
+    - "planning"
+    - "epic"
+  child_labels:
+    - "from-agent"
+    - "planning"
+
+  # Как задача связывается с эпиком: epic_link | parent | tool (см. SKILL.md, «Настройка под команду»).
+  link_mode: "epic_link"
+
+  # Только для link_mode: epic_link. id custom field'ов вида customfield_NNNNN; пусто — скилл найдёт или спросит.
+  epic_name_field: ""
+  epic_link_field: ""
+
+behavior:
+  confirm_before_create: true            # черновик и явное подтверждение перед созданием эпика
+  create_children_if_listed: true        # создавать подзадачи, если пользователь их перечислил
+  confirm_children_before_create: true   # отдельно подтверждать список подзадач

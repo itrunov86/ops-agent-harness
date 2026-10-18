@@ -1,0 +1,26 @@
+h2. Симптом
+
+{symptom}
+
+h2. Важно: {key_warning_title}
+
+{key_warning}
+
+h2. Диагностика
+
+{diagnosis}
+
+h2. Решение
+
+{solution}
+
+h2. Когда эскалировать
+
+{escalation}
+
+h2. Ссылки
+
+{links}
+
+----
+_Источник: {source}_

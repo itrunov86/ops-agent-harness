@@ -1,0 +1,25 @@
+# Дефолты скилла quarterly-planning. Меняются обычным изменением репозитория, не в рантайме.
+
+wiki:
+  space: "{{WIKI_SPACE}}"
+
+  # Страница-раздел «Квартальное планирование» (родитель страниц кварталов). Пусто — спросить пользователя.
+  planning_page_id: ""
+
+  # Имя страницы квартала: {quarter} → Q1..Q4, {year} → 2026.
+  quarter_page_title: "{quarter} {year}"
+
+  # Метка квартала для эпика и подзадач.
+  quarter_label_pattern: "q{n}-{year}"
+
+quarters:
+  # Месяц начала финансового года; 1 — квартал совпадает с календарным.
+  fiscal_start_month: 1
+
+behavior:
+  confirm_before_create: true   # черновик и явное подтверждение перед каждой записью
+  min_points_to_deliver: 3      # «Что появится к концу квартала»
+  min_success_criteria: 2       # «Как поймём, что получилось»
+
+# Трекерную часть выполняет этот скилл.
+delegate_tracker_to: "tracker-epic"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Разбор обращений и алертов"
+  short_description: "Разобрать обращение или алерт и сохранить dated-документ в {{KB_ROOT}}"
+  default_prompt: "Use $request-triage to investigate this request or alert and save a dated note."

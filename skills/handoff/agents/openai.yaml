@@ -1,0 +1,3 @@
+interface:
+  display_name: "Журнал задачи (handoff)"
+  short_description: "Завести или обновить журнал длинной задачи, чтобы не терять контекст"
