@@ -1,10 +1,12 @@
-# Команда (пример формата)
+**English** · [Русский](teams.example.ru.md)
 
-Скопируйте в `teams.md` (он в `.gitignore`) и заполните своей командой. Агент читает файл перед назначением задач
-или фильтрацией по исполнителю: колонка «Логин в трекере» — значение для `assignee` в `jira_create_issue` и JQL.
+# Team (format example)
 
-| Имя | Роль | Логин в трекере | Email | Чат |
-|-----|------|-----------------|-------|-----|
-| Алиса Пример | тимлид | `aprimer` | alice@example.com | `@alice` |
-| Боб Тестов | SRE, дежурный | `btestov` | bob@example.com | `@bob` |
-| Вера Образцова | DevOps, CI/CD | `vobraz` | vera@example.com | `@vera` |
+Copy to `teams.md` (it is in `.gitignore`) and fill in your team. The agent reads this file before assigning tasks
+or filtering by assignee: the "Tracker login" column is the value for `assignee` in `jira_create_issue` and JQL.
+
+| Name | Role | Tracker login | Email | Chat |
+|------|------|---------------|-------|------|
+| Alice Example | team lead | `aexample` | alice@example.com | `@alice` |
+| Bob Tester | SRE, on call | `btester` | bob@example.com | `@bob` |
+| Vera Sample | DevOps, CI/CD | `vsample` | vera@example.com | `@vera` |

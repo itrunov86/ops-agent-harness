@@ -33,6 +33,13 @@ class SessionBindingTest(HarnessCase):
         self.assertIn("OPS-2-beta", self.hook("UserPromptSubmit", "C", prompt="переключаемся на OPS-2"))
         self.assertIn("OPS-2-beta", self.hook("UserPromptSubmit", "D", prompt="ок, работаем по OPS-2"))
 
+    def test_english_phrases_bind(self):
+        self.assertIn("OPS-1-alpha", self.hook("UserPromptSubmit", "J", prompt="OPS-1 continue"))
+        self.assertIn("OPS-2-beta", self.hook("UserPromptSubmit", "J", prompt="ok, switch to OPS-2"))
+        self.assertIn("OPS-1-alpha", self.hook("UserPromptSubmit", "K", prompt="let's keep working on OPS-1"))
+        self.assertIn("OPS-2-beta", self.hook("UserPromptSubmit", "L", prompt="continue with task OPS-2 please"))
+        self.assertEqual(self.hook("UserPromptSubmit", "M", prompt="this alert looks like OPS-1"), "")
+
     def test_start_command_binds_but_echo_does_not(self):
         start = f"python3 {TOOLS}/agent_session" + ".py start OPS-2 beta"
         out = self.hook("PostToolUse", "E", tool_name="Bash", tool_input={"command": f"cd /tmp && {start}"})

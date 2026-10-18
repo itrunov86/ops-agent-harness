@@ -1,56 +1,58 @@
-# Безопасность — защита кода от Anthropic
+**English** · [Русский](ru/security.md)
 
-← [Обратно в README](../README.md)
+# Security — protecting code from Anthropic
 
-Этот раздел отвечает на вопрос: **«мы используем облачный Claude, как добиться того, чтобы наш код и логи не утекли в Anthropic?»**
+← [Back to README](../README.md)
 
----
-
-## Что Anthropic технически получает
-
-Когда Claude вызывает tool, происходит следующее:
-
-1. Claude отправляет в API запрос: «вызови tool X с такими параметрами».
-2. API возвращает этот запрос вашему клиенту.
-3. Клиент исполняет tool локально (через MCP-сервер).
-4. Клиент отправляет **результат tool** обратно в API как сообщение в диалоге.
-5. Claude генерирует ответ на основе всего диалога.
-
-**Это значит**: результат каждого tool — фрагменты логов, фрагменты кода, метрики — физически проходит через инфраструктуру Anthropic для генерации ответа. Это базовая природа облачной LLM, и обойти её, оставаясь на облачной модели, нельзя.
-
-**Что отсюда следует**: задача — не «не отправлять ничего», а **«отправлять минимум, и того, что отправлено, не должно быть страшно потерять»**.
+This section answers the question: **"we use cloud Claude — how do we make sure our code and logs don't leak to Anthropic?"**
 
 ---
 
-## Что Anthropic НЕ получает (при правильной настройке)
+## What Anthropic technically receives
 
-- Прямой доступ к вашим репозиториям, кластерам, базам — нет. Только через ваши tools.
-- Содержимое tools, которые не были вызваны — нет.
-- Долгосрочное хранение запросов — нет, если включён Zero Data Retention.
-- Использование ваших данных для обучения — нет, это базовая гарантия API.
+When Claude calls a tool, the following happens:
+
+1. Claude sends a request to the API: "call tool X with these parameters".
+2. The API returns this request to your client.
+3. The client executes the tool locally (through the MCP server).
+4. The client sends the **tool result** back to the API as a message in the conversation.
+5. Claude generates a response based on the whole conversation.
+
+**This means**: the result of every tool — log fragments, code fragments, metrics — physically passes through Anthropic's infrastructure to generate the response. This is the basic nature of a cloud LLM, and there is no way around it while staying on a cloud model.
+
+**What follows from this**: the goal is not "send nothing" but **"send the minimum, and whatever is sent must not be scary to lose"**.
 
 ---
 
-## Защитные слои
+## What Anthropic does NOT receive (when configured correctly)
 
-Защита строится по принципу defense-in-depth. Слои отсортированы от самого важного к наименее важному.
+- Direct access to your repositories, clusters, databases — no. Only through your tools.
+- Contents of tools that were not called — no.
+- Long-term storage of requests — no, if Zero Data Retention is enabled.
+- Use of your data for training — no, this is a baseline API guarantee.
 
-### 1. Минимизация контекста — самое мощное средство
+---
 
-Если вы шлёте 500 строк, риск ровно в 500 строк. Если вы шлёте 5 строк, риск в 5 строк. Это работает лучше любого контракта.
+## Protection layers
 
-Конкретные техники:
+Protection follows the defense-in-depth principle. Layers are sorted from most to least important.
 
-- **Summaries вместо raw данных.** Для метрик — агрегаты (min/max/p99), не точки. Для логов — паттерны и счётчики, не строки.
-- **Жёсткие лимиты в каждом tool.** В нашем сервере: `vl_query` лимит 500 строк потолок, `obsidian_read_note` лимит 8000 символов, `vm_query_range` ≤120 точек на ряд.
-- **Маршрутизация без SSRF.** `vm_*` и `vl_*` ходят только в `url` из конфига; `vl_*` принимают имя тенанта из server-side `victorialogs.tenants`, `am_*` — имя из `alertmanager.instances`. URL, credentials и номера тенантов вне карты не принимаются.
-- **Отдельный VictoriaMetrics MCP — отдельный trust boundary.** Ответы `mcp__victoriametrics__query*` не проходят через локальные `Redactor` и `audit` этого `sre-toolbox`; поэтому агент должен запрашивать только узкое окно и минимально необходимые агрегаты/точки. Не включай в PromQL секреты, токены или лишние high-cardinality labels.
-- **Только релевантные поля.** Не отдавайте полный объект Kubernetes пода — отдайте `{name, phase, restarts, ready}`.
-- **Никаких «верни всё».** Любой tool возвращает не более чем нужно для конкретного ответа.
+### 1. Context minimization — the most powerful tool
+
+If you send 500 lines, the risk is exactly 500 lines. If you send 5 lines, the risk is 5 lines. This works better than any contract.
+
+Specific techniques:
+
+- **Summaries instead of raw data.** For metrics — aggregates (min/max/p99), not points. For logs — patterns and counters, not lines.
+- **Hard limits in every tool.** In our server: `vl_query` has a 500-line ceiling, `obsidian_read_note` a limit of 8000 characters, `vm_query_range` ≤120 points per series.
+- **Routing without SSRF.** `vm_*` and `vl_*` go only to the `url` from the config; `vl_*` accept a tenant name from the server-side `victorialogs.tenants`, `am_*` a name from `alertmanager.instances`. URLs, credentials and tenant numbers outside the map are not accepted.
+- **A separate VictoriaMetrics MCP is a separate trust boundary.** Responses from `mcp__victoriametrics__query*` do not pass through this `sre-toolbox`'s local `Redactor` and `audit`; so the agent must request only a narrow window and the minimum necessary aggregates/points. Do not put secrets, tokens or unnecessary high-cardinality labels into PromQL.
+- **Only relevant fields.** Do not return the full Kubernetes pod object — return `{name, phase, restarts, ready}`.
+- **No "return everything".** Any tool returns no more than needed for the specific answer.
 
 ### 2. Tokenization (aliasing)
 
-Перед отправкой Claude замена внутренних имён на токены:
+Before sending to Claude, internal names are replaced with tokens:
 
 ```
 payment-service           → service-A
@@ -59,105 +61,105 @@ internal-billing-api.corp → api-X
 customer_email            → field_001
 ```
 
-На стороне MCP-сервера сохраняется маппинг (in-memory, на время сессии). Claude отлично работает с обезличенными именами и решает задачу. В финальном ответе пользователю токены восстанавливаются обратно.
+The MCP server keeps the mapping (in-memory, for the duration of the session). Claude works perfectly well with anonymized names and solves the task. In the final answer to the user, the tokens are restored.
 
-Эффект: даже если у Anthropic будет утечка логов API (которой не будет, но представим), эти данные не дадут понимания структуры вашего бизнеса.
+Effect: even if Anthropic had an API log leak (which won't happen, but let's imagine), this data would give no insight into the structure of your business.
 
-### 3. Redaction (маскировка)
+### 3. Redaction (masking)
 
-Регулярки и DLP на каждом ответе tool, до возврата в Claude:
+Regexes and DLP on every tool response, before it is returned to Claude:
 
 - AWS access keys (`AKIA...`)
 - SSH/PGP private keys
-- JWT-токены
-- Базовые URL внутренних систем (`*.corp`, `*.internal`)
-- Email-адреса (если не нужны для задачи)
-- Номера карт, паспортов, IBAN (для финтех/банков)
-- Российские ИНН и СНИЛС
-- Кастомерские ID — заменяются на хэши
+- JWT tokens
+- Base URLs of internal systems (`*.corp`, `*.internal`)
+- Email addresses (if not needed for the task)
+- Card numbers, passport numbers, IBANs (for fintech/banks)
+- Russian INN and SNILS numbers
+- Customer IDs — replaced with hashes
 
-Реализация: библиотеки типа `presidio` или собственный набор регулярок плюс правила. **Важно**: redaction должен fail-closed — если правило сработало, тулу нельзя возвращать ничего, лучше ошибку.
+Implementation: libraries like `presidio` or your own set of regexes plus rules. **Important**: redaction must fail closed — if a rule fires, the tool must return nothing; an error is better.
 
-Все правила настраиваются в `config.yaml` в секции `redaction.patterns`.
+All rules are configured in `config.yaml` in the `redaction.patterns` section.
 
-### 4. Code-specific защита
+### 4. Code-specific protection
 
-Когда tool отдаёт фрагменты кода или логов:
+When a tool returns code or log fragments:
 
-- Comments с потенциально чувствительными данными удаляются (TODO с упоминанием клиентов, временные конфиги, забытые URL).
-- Если в фрагменте есть строковые литералы длиннее N символов — заменяются на `<STRING>`.
-- Если в фрагменте есть имена приватных пакетов — токенизируются.
+- Comments with potentially sensitive data are removed (TODOs mentioning customers, temporary configs, forgotten URLs).
+- String literals longer than N characters in a fragment are replaced with `<STRING>`.
+- Private package names in a fragment are tokenized.
 
-Дополнительно: для критичных репозиториев (платёжная логика, ML-модели) `search_code` может быть отключён вовсе, доступ только к именам файлов и сигнатурам функций.
+Additionally: for critical repositories (payment logic, ML models) `search_code` can be disabled entirely, with access only to file names and function signatures.
 
-### 5. Контрактные защиты со стороны Anthropic
+### 5. Contractual protections from Anthropic
 
-Это нужно явно проговорить в контракте:
+These must be stated explicitly in the contract:
 
-- **Zero Data Retention (ZDR)**: запросы не сохраняются после ответа, даже для anti-abuse. Включается в enterprise-плане.
-- **No-training**: данные не используются для обучения моделей. Это базовое правило для всего API.
-- **Сертификации**: SOC 2 Type II, ISO 27001, ISO 42001. Для медицины — BAA (HIPAA). Для ЕС — GDPR DPA.
-- **Region pinning**: Bedrock позволяет привязать инференс к региону (eu-central-1, например).
+- **Zero Data Retention (ZDR)**: requests are not stored after the response, not even for anti-abuse. Enabled in the enterprise plan.
+- **No-training**: data is not used to train models. This is a baseline rule for the whole API.
+- **Certifications**: SOC 2 Type II, ISO 27001, ISO 42001. For healthcare — BAA (HIPAA). For the EU — GDPR DPA.
+- **Region pinning**: Bedrock lets you pin inference to a region (eu-central-1, for example).
 
-### 6. Сетевые защиты
+### 6. Network protections
 
-- **AWS Bedrock через PrivateLink**. Трафик из вашего VPC не выходит в публичный интернет. Это самый сильный сетевой контроль.
-- **GCP Vertex AI с Private Service Connect** — то же на Google Cloud.
-- **Прямой Anthropic API через egress-прокси** с allowlist на конкретные домены, mTLS, IP whitelist.
+- **AWS Bedrock via PrivateLink**. Traffic from your VPC does not go out to the public internet. This is the strongest network control.
+- **GCP Vertex AI with Private Service Connect** — the same on Google Cloud.
+- **Direct Anthropic API through an egress proxy** with an allowlist for specific domains, mTLS, IP whitelist.
 
 ### 7. Egress proxy + DLP
 
-Между MCP-сервером и Claude API ставится прокси (Envoy/Squid/коммерческий DLP):
+A proxy (Envoy/Squid/commercial DLP) is placed between the MCP server and the Claude API:
 
-- Allowlist только на эндпоинт LLM.
-- DLP-сканер проверяет каждый исходящий запрос ещё раз — повторная проверка поверх redactor'а.
-- Rate limit, аномалии по объёму.
+- Allowlist only for the LLM endpoint.
+- A DLP scanner checks every outgoing request once more — a second check on top of the redactor.
+- Rate limit, volume anomalies.
 
 ### 8. Audit log
 
-Каждый исходящий запрос пишется в SIEM (Splunk/Elastic):
+Every outgoing request is written to a SIEM (Splunk/Elastic):
 
-- Кто инициировал (Claude-аккаунт SRE-инженера).
-- Какой tool, с какими параметрами.
-- Что отдалось обратно (полный текст или его хэш + длина).
-- Что в итоге ушло в Claude API.
+- Who initiated it (the SRE engineer's Claude account).
+- Which tool, with which parameters.
+- What was returned (full text or its hash + length).
+- What ended up being sent to the Claude API.
 
-Это нужно для post-factum расследований и для прохождения compliance-аудита.
+This is needed for after-the-fact investigations and for passing a compliance audit.
 
-В нашем сервере audit log пишется в JSONL по пути `server.audit_log_path` из конфига.
-
----
-
-## Чек-лист для ИБ-апрува
-
-Перед production-внедрением ИБ обычно хочет видеть подтверждение по каждому пункту:
-
-- [ ] Контракт с Anthropic с пунктом ZDR.
-- [ ] No-training закреплён письменно.
-- [ ] Трафик идёт через Bedrock PrivateLink (или Vertex PSC).
-- [ ] Egress-прокси с allowlist установлен и протестирован.
-- [ ] DLP-правила покрывают известные паттерны секретов и PII.
-- [ ] Все tools имеют жёсткие лимиты на размер ответа.
-- [ ] Redaction срабатывает fail-closed, протестировано unit-тестами.
-- [ ] Audit log в SIEM с retention ≥ 1 год.
-- [ ] Per-tool RBAC: не каждый сотрудник имеет доступ к каждому tool.
-- [ ] Регулярный red team review (раз в полгода).
-- [ ] План отзыва: как быстро мы можем отключить Claude-доступ к конкретному инструменту или всей системе.
+In our server, the audit log is written as JSONL to the `server.audit_log_path` path from the config.
 
 ---
 
-## Когда облачный Claude всё-таки не подходит
+## Checklist for security approval
 
-Есть кейсы, где даже всё перечисленное не пройдёт ИБ:
+Before a production rollout, the security team usually wants confirmation of each item:
 
-- Государственные информационные системы, КИИ, оборонка.
-- R&D с патентно-чувствительным кодом.
-- Регулируемые финансовые системы определённого уровня.
-
-В таких случаях единственный путь — self-hosted LLM (Llama 3.x, Qwen, DeepSeek-Coder) на своих GPU. Архитектура MCP при этом не меняется, меняется только последний шаг — куда уходит запрос.
+- [ ] Contract with Anthropic with a ZDR clause.
+- [ ] No-training confirmed in writing.
+- [ ] Traffic goes through Bedrock PrivateLink (or Vertex PSC).
+- [ ] Egress proxy with an allowlist installed and tested.
+- [ ] DLP rules cover known secret and PII patterns.
+- [ ] All tools have hard limits on response size.
+- [ ] Redaction fails closed, covered by unit tests.
+- [ ] Audit log in the SIEM with retention ≥ 1 year.
+- [ ] Per-tool RBAC: not every employee has access to every tool.
+- [ ] Regular red team review (every six months).
+- [ ] Revocation plan: how quickly we can cut off Claude's access to a specific tool or the whole system.
 
 ---
 
-## Ключевая мысль
+## When cloud Claude is still not a fit
 
-Безопасность облачного Claude — это не «доверяем Anthropic», а **«отправляем только то, что не страшно потерять, по сети, которая физически не идёт через интернет, по контракту, который запрещает хранение, и логируем каждый байт»**. Каждый из четырёх элементов должен быть на месте.
+There are cases where even all of the above will not pass security review:
+
+- Government information systems, critical information infrastructure, defense.
+- R&D with patent-sensitive code.
+- Regulated financial systems of a certain level.
+
+In such cases the only way is a self-hosted LLM (Llama 3.x, Qwen, DeepSeek-Coder) on your own GPUs. The MCP architecture does not change; only the last step changes — where the request goes.
+
+---
+
+## Key idea
+
+Cloud Claude security is not "we trust Anthropic", but **"we send only what is not scary to lose, over a network that physically does not go through the internet, under a contract that forbids storage, and we log every byte"**. Each of the four elements must be in place.

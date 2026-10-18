@@ -1,63 +1,65 @@
-# Хуки
+**English** · [Русский](ru/hooks.md)
 
-Хук — команда, которую агент запускает на событии и передаёт ей JSON на stdin. Harness ставит два обработчика:
-`tools/agent_session.py hook` (журналы, контекст, автокоммит) и `tools/kb.py hook` (документы по ключам задач).
-Оба никогда не падают и ничего не блокируют: при любой ошибке молча выходят.
+# Hooks
 
-| Событие | Claude Code | Codex | Что делает |
+A hook is a command the agent runs on an event, passing it JSON on stdin. The harness installs two handlers:
+`tools/agent_session.py hook` (journals, context, autocommit) and `tools/kb.py hook` (documents by task keys).
+Neither ever fails or blocks anything: on any error they exit silently.
+
+| Event | Claude Code | Codex | What it does |
 |---|---|---|---|
-| `SessionStart` | ✓ | ✓ | Подставляет журнал задачи после `/compact`, `/clear`, `--resume`, при старте в папке задачи |
-| `UserPromptSubmit` | ✓ | ✓ | Привязка чата по ключу в начале сообщения; сигнал 50/75% контекста; `kb.py hook` — список документов по ключам задач из сообщения |
-| `PreToolUse` | ✓ | ✓ | Снимок `git status` базы знаний перед инструментом (для автокоммита) |
-| `PostToolUse` | ✓ | ✓ | Какие файлы базы изменил вызов; привязка чата, если агент завёл журнал или пишет в него; сигнал контекста |
-| `Stop` | ✓ | ✓ | Автокоммит файлов базы, изменённых этим чатом |
-| `PostCompact` | ✓ | — | Сохраняет резюме сжатия в `<state_dir>/compact/` |
+| `SessionStart` | ✓ | ✓ | Injects the task journal after `/compact`, `/clear`, `--resume`, and on start in a task folder |
+| `UserPromptSubmit` | ✓ | ✓ | Binds the chat by the key at the start of the message; 50/75% context signal; `kb.py hook` — list of documents for the task keys in the message |
+| `PreToolUse` | ✓ | ✓ | Snapshot of the knowledge base `git status` before the tool runs (for autocommit) |
+| `PostToolUse` | ✓ | ✓ | Which knowledge-base files the call changed; binds the chat if the agent created or writes to a journal; context signal |
+| `Stop` | ✓ | ✓ | Autocommits the knowledge-base files changed by this chat |
+| `PostCompact` | ✓ | — | Saves the compaction summary to `<state_dir>/compact/` |
 
-Codex запускает новые хуки только после `/hooks` → доверить.
+Codex runs new hooks only after `/hooks` → trust.
 
-## Сигналы заполнения контекста
+## Context fill signals
 
-`hooks.handoff_thresholds` (по умолчанию 50 и 75). На каждом пороге — один раз за чат — хук просит агента обновить
-журнал; на последнем — закончить шаг и предложить `/compact`. После сжатия пороги снова взводятся. Заполненность
-считается по последнему `usage` в транскрипте сессии.
+`hooks.handoff_thresholds` (50 and 75 by default). At each threshold — once per chat — the hook asks the agent to
+update the journal; at the last one, to finish the current step and suggest `/compact`. After compaction the
+thresholds are re-armed. Fill level is computed from the last `usage` in the session transcript.
 
-## Автокоммит базы знаний
+## Knowledge base autocommit
 
-Проблема: несколько параллельных чатов правят базу, кто-то забывает закоммитить, и чужие недописанные правки
-попадают в следующий коммит.
+Problem: several parallel chats edit the base, someone forgets to commit, and other chats' unfinished edits end up in
+the next commit.
 
-Решение:
+Solution:
 
-1. **PreToolUse / PostToolUse:** до и после каждого инструмента хук сравнивает `git status` базы и запоминает,
-   какие файлы изменил этот чат — любым инструментом, включая правки через shell.
-2. **Stop:** в конце ответа коммитит **только эти файлы**: `<KEY> docs: <файлы>`. Ключ — из привязки чата или из
-   имён файлов.
-3. **Не коммитит и предупреждает:** файл, который за последний час правил и другой чат; файл, похожий на секрет
-   (приватный ключ, JWT, токены Vault/GitLab/AWS/Yandex Cloud).
-4. Если агент закоммитил сам — хук ничего не делает. Ничего не пушится. Во время merge/rebase — откладывает.
+1. **PreToolUse / PostToolUse:** before and after every tool call the hook compares the base's `git status` and
+   records which files this chat changed — with any tool, including edits through the shell.
+2. **Stop:** at the end of the response it commits **only those files**: `<KEY> docs: <files>`. The key comes from
+   the chat binding or from the file names.
+3. **Does not commit, and warns about:** a file that another chat also edited within the last hour; a file that
+   looks like a secret (private key, JWT, Vault/GitLab/AWS/Yandex Cloud tokens).
+4. If the agent committed by itself, the hook does nothing. Nothing is pushed. During a merge/rebase it postpones.
 
-Выключить: `hooks.autocommit = false`. Репозитории с кодом автокоммит не трогает — только `kb_root`.
+To turn it off: `hooks.autocommit = false`. Autocommit does not touch code repositories — only `kb_root`.
 
-## Состояние
+## State
 
-`<state_dir>` (по умолчанию `~/.agents/state`):
+`<state_dir>` (`~/.agents/state` by default):
 
-| Файл | Что |
+| File | Contents |
 |---|---|
-| `session-tasks.json` | чат → журнал задачи |
-| `active-tasks.json` | папка с ключом в пути → журнал |
-| `pressure/<session>.json` | какие пороги контекста уже сработали |
-| `autocommit/<session>.json`, `owners.json` | файлы базы, изменённые чатами |
-| `compact/*.md` | резюме сжатий Claude Code |
-| `harness-manifest.json` | что поставил `harness install` |
+| `session-tasks.json` | chat → task journal |
+| `active-tasks.json` | folder with a key in its path → journal |
+| `pressure/<session>.json` | which context thresholds have already fired |
+| `autocommit/<session>.json`, `owners.json` | knowledge-base files changed by chats |
+| `compact/*.md` | Claude Code compaction summaries |
+| `harness-manifest.json` | what `harness install` installed |
 
-Всё это можно удалить — хуки начнут с чистого листа.
+All of it can be deleted — the hooks will start from a clean slate.
 
-## Ручная проверка
+## Manual check
 
 ```bash
-echo '{"hook_event_name":"UserPromptSubmit","session_id":"t","cwd":"'$PWD'","prompt":"OPS-1234 продолжаем"}' \
+echo '{"hook_event_name":"UserPromptSubmit","session_id":"t","cwd":"'$PWD'","prompt":"OPS-1234 continue"}' \
   | python3 -I ~/Projects/agent-harness/tools/agent_session.py hook
 ```
 
-Тесты всех сценариев — `tests/test_agent_session.py`.
+Tests for all scenarios are in `tests/test_agent_session.py`.

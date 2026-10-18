@@ -1,34 +1,36 @@
-# Архитектура
+**English** · [Русский](ru/architecture.md)
 
-← [Обратно в README](../README.md)
+# Architecture
 
-## Что это и зачем
+← [Back to README](../README.md)
 
-MCP-сервер (Model Context Protocol) — это локальный процесс, который выставляет Claude набор инструментов для работы с вашей инфраструктурой. Claude сам решает, какие инструменты вызвать, в каком порядке и с какими параметрами, а затем интерпретирует результаты на естественном языке.
+## What it is and why
 
-**Решаемые задачи**
+An MCP (Model Context Protocol) server is a local process that exposes to Claude a set of tools for working with your infrastructure. Claude decides on its own which tools to call, in what order and with what parameters, and then interprets the results in natural language.
 
-- Триаж инцидентов: алерт пришёл → Claude сам тянет нужные метрики, логи и историю деплоев → выдаёт гипотезу.
-- Постмортем: автоматический сбор таймлайна из VictoriaMetrics, VictoriaLogs и Alertmanager.
-- Routine ops: «покажи топ-10 ошибок за час в сервисе X», «какие алерты горят дольше 30 минут».
-- Self-service для разработчиков: можно отвечать на вопросы «почему мой сервис тормозит» без эскалации к SRE.
+**Problems it solves**
 
-**Что важно понимать сразу**
+- Incident triage: an alert fires → Claude pulls the relevant metrics, logs and deploy history itself → produces a hypothesis.
+- Postmortems: automatic timeline collection from VictoriaMetrics, VictoriaLogs and Alertmanager.
+- Routine ops: "show the top 10 errors in service X over the last hour", "which alerts have been firing for more than 30 minutes".
+- Developer self-service: questions like "why is my service slow" can be answered without escalating to SRE.
 
-Сам MCP-сервер работает локально внутри вашего периметра. Но Claude — это облачная модель, поэтому **результаты вызовов tools передаются в Anthropic** как часть контекста для генерации ответа. Подробности — в [security.md](./security.md).
+**What to understand right away**
+
+The MCP server itself runs locally inside your perimeter. But Claude is a cloud model, so **tool call results are sent to Anthropic** as part of the context used to generate the answer. Details are in [security.md](./security.md).
 
 ---
 
-## Высокоуровневая схема
+## High-level diagram
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                  Периметр компании (VPC)                     │
+│                  Company perimeter (VPC)                     │
 │                                                              │
 │   ┌──────────────┐                                           │
 │   │ Alertmanager │──┐                                        │
 │   └──────────────┘  │   ┌──────────────────────┐             │
-│   ┌──────────────┐  │   │      MCP сервер      │             │
+│   ┌──────────────┐  │   │      MCP server      │             │
 │   │ VictoriaMetr │──┼──▶│   (FastMCP, stdio)   │             │
 │   └──────────────┘  │   │                      │             │
 │   ┌──────────────┐  │   │  ┌────────────────┐  │             │
@@ -47,66 +49,66 @@ MCP-сервер (Model Context Protocol) — это локальный проц
                                      ▼
                          ┌──────────────────────┐
                          │ Claude API (Bedrock  │
-                         │ или Anthropic direct)│
+                         │ or Anthropic direct) │
                          └──────────────────────┘
 ```
 
 ---
 
-## Поток данных при разборе инцидента
+## Data flow during incident triage
 
-1. Алерт фиксируется в Alertmanager.
-2. Дежурный SRE открывает Claude (Desktop / Code / Cowork) и спрашивает: «что с сервисом checkout?».
-3. Claude вызывает `obsidian_search` — проверяет, есть ли уже runbook (см. [obsidian.md](./obsidian.md)).
-4. Claude вызывает `am_active_alerts` через MCP — Alertmanager возвращает компактный список.
-5. `mcp__victoriametrics__query_range` к отдельному VictoriaMetrics MCP — получает кривую error rate; локальный `vm_query_range` используется только как fallback.
-6. `vl_query` к VictoriaLogs в режиме `patterns` — топ ошибочных шаблонов за окно после старта алерта.
-7. (Опционально) `get_recent_deploys` — если подключён deploy-tracker.
-8. Claude формулирует гипотезу и возвращает её пользователю.
+1. The alert is registered in Alertmanager.
+2. The on-call SRE opens Claude (Desktop / Code / Cowork) and asks: "what's wrong with the checkout service?".
+3. Claude calls `obsidian_search` to check whether a runbook already exists (see [obsidian.md](./obsidian.md)).
+4. Claude calls `am_active_alerts` through MCP — Alertmanager returns a compact list.
+5. `mcp__victoriametrics__query_range` against the separate VictoriaMetrics MCP gets the error rate curve; the local `vm_query_range` is used only as a fallback.
+6. `vl_query` against VictoriaLogs in `patterns` mode — the top error patterns for the window after the alert started.
+7. (Optional) `get_recent_deploys` — if a deploy tracker is connected.
+8. Claude formulates a hypothesis and returns it to the user.
 
-На каждом шаге MCP-сервер применяет редактуру, токенизацию и аудит (см. [security.md](./security.md)).
-
----
-
-## Где живёт MCP-сервер
-
-Рекомендуемая топология:
-
-- **Production**: контейнер в Kubernetes-кластере операций (не в продуктовом), либо отдельная VM. Сервис-аккаунты с минимально необходимыми правами на чтение метрик и логов.
-- **Dev**: тот же бинарь запускается локально на ноутбуке SRE с туннелем до dev-окружения (для разработки tools).
-- **Транспорт**: stdio (через SSH-туннель или локально) для индивидуальной работы; HTTP/SSE с mTLS — если сервер должен обслуживать команду.
+At every step the MCP server applies redaction, tokenization and auditing (see [security.md](./security.md)).
 
 ---
 
-## Реализация
+## Where the MCP server lives
 
-Рабочий код сервера лежит в [server.py](../server.py). Параметры подключения берутся из `config.yaml` (шаблон — [config.example.yaml](../config.example.yaml)).
+Recommended topology:
 
-Ключевые особенности реализации:
-
-- **FastMCP** в качестве фреймворка — минимум boilerplate.
-- **Конфигурация через YAML** + подстановка `${ENV_VAR}` для секретов.
-- **Redactor** с настраиваемыми регулярками (AWS-ключи, JWT, email, ИНН, СНИЛС, внутренние хосты).
-- **Allowlist** разрешённых сервисов и неймспейсов проверяется на каждом запросе.
-- **Audit log** — каждый вызов tool пишется в JSONL с размером ответа и счётчиком redaction hits.
-- **Лимиты** на размер ответа (число серий, точек, строк) — настраиваются в конфиге.
-- **Одна Grafana** — `grafana.url`; метрики и логи идут мимо Grafana, напрямую в VictoriaMetrics/VictoriaLogs.
-- **Тенанты логов и инстансы Alertmanager** — `vl_*` принимают `tenant` из server-side карты `victorialogs.tenants` (заголовок `AccountID`), `am_*` — `instance` из `alertmanager.instances`; произвольный URL или номер вне карты не принимается.
-- **Отдельный VictoriaMetrics MCP (опционально)** — внешний HTTP-сервер, подключённый в `.mcp.json` проекта; агент использует `mcp__victoriametrics__query*` для прямого получения метрик, а локальные `vm_*` tools сохраняются как fallback. Пустой результат проверяется через label/series discovery, поскольку внешний MCP может смотреть в другой VM-инстанс или tenant.
-- **Защитные лимиты PromQL** — timeout, максимальное range-окно, допустимый step, расчётное число точек и сериализованный размер ответа проверяются до/во время запроса.
-- **Защитные лимиты LogsQL** — timeout, максимальное окно, входной NDJSON и сериализованный размер ответа ограничиваются до/во время запроса.
-- **Streaming NDJSON** для VictoriaLogs (правильный способ читать `/select/logsql/query`).
-- **`summarize=true` по умолчанию** в `vm_query_range` — экономия в 50-200 раз по сравнению с сырыми точками.
-- **Режим `patterns` по умолчанию** в `vl_query` — кластеризация на стороне сервера.
-- **In-memory Obsidian-индекс** с инкрементальным обновлением по `mtime`.
+- **Production**: a container in the operations Kubernetes cluster (not the product one), or a dedicated VM. Service accounts with the minimum permissions needed to read metrics and logs.
+- **Dev**: the same binary runs locally on the SRE's laptop with a tunnel to the dev environment (for developing tools).
+- **Transport**: stdio (over an SSH tunnel or locally) for individual work; HTTP/SSE with mTLS if the server has to serve the whole team.
 
 ---
 
-## Дальше
+## Implementation
 
-- [tools.md](./tools.md) — справочник по каждому tool.
-- [security.md](./security.md) — защита кода от Anthropic.
-- [token-economy.md](./token-economy.md) — экономия токенов.
-- [obsidian.md](./obsidian.md) — knowledge base через Obsidian.
-- [deployment.md](./deployment.md) — установка и эксплуатация.
-- [examples.md](./examples.md) — практические сценарии использования.
+The working server code is in [server.py](../server.py). Connection parameters come from `config.yaml` (template: [config.example.yaml](../config.example.yaml)).
+
+Key implementation features:
+
+- **FastMCP** as the framework — minimal boilerplate.
+- **YAML configuration** + `${ENV_VAR}` substitution for secrets.
+- **Redactor** with configurable regexes (AWS keys, JWT, email, INN, SNILS, internal hosts).
+- **Allowlist** of permitted services and namespaces, checked on every request.
+- **Audit log** — every tool call is written to JSONL with the response size and a redaction hit counter.
+- **Limits** on response size (number of series, points, lines) — configurable.
+- **A single Grafana** — `grafana.url`; metrics and logs bypass Grafana and go directly to VictoriaMetrics/VictoriaLogs.
+- **Log tenants and Alertmanager instances** — `vl_*` accept a `tenant` from the server-side map `victorialogs.tenants` (the `AccountID` header), `am_*` accept an `instance` from `alertmanager.instances`; an arbitrary URL or a number outside the map is rejected.
+- **Separate VictoriaMetrics MCP (optional)** — an external HTTP server connected in the project's `.mcp.json`; the agent uses `mcp__victoriametrics__query*` to fetch metrics directly, and the local `vm_*` tools remain as a fallback. An empty result is checked through label/series discovery, because the external MCP may be looking at a different VM instance or tenant.
+- **PromQL guard limits** — timeout, maximum range window, allowed step, estimated point count and serialized response size are checked before/during the query.
+- **LogsQL guard limits** — timeout, maximum window, input NDJSON and serialized response size are capped before/during the query.
+- **Streaming NDJSON** for VictoriaLogs (the right way to read `/select/logsql/query`).
+- **`summarize=true` by default** in `vm_query_range` — 50-200x savings compared to raw points.
+- **`patterns` mode by default** in `vl_query` — server-side clustering.
+- **In-memory Obsidian index** with incremental updates by `mtime`.
+
+---
+
+## Next
+
+- [tools.md](./tools.md) — reference for every tool.
+- [security.md](./security.md) — protecting code from Anthropic.
+- [token-economy.md](./token-economy.md) — saving tokens.
+- [obsidian.md](./obsidian.md) — knowledge base through Obsidian.
+- [deployment.md](./deployment.md) — installation and operations.
+- [examples.md](./examples.md) — practical usage scenarios.

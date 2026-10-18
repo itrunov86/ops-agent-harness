@@ -1,20 +1,22 @@
-# Типовые проблемы
+**English** · [Русский](ru/troubleshooting.md)
 
-| Симптом | Причина и что делать |
+# Troubleshooting
+
+| Symptom | Cause and what to do |
 |---|---|
-| В новом чате агент говорит не о той задаче | Ключ не в начале сообщения или чат привязан к другой задаче: `переключаемся на OPS-…`. Привязки — `<state_dir>/session-tasks.json` |
-| Журнал не подставился после «OPS-… продолжаем» | У задачи нет журнала (`ls <kb_root>/tasks/ \| grep OPS-…`) — «заведи handoff». Или префикс не из `tracker.prefixes` |
-| Журнал подставляется во все чаты | Общая папка привязана к задаче в `active-tasks.json` (старая установка) — удалите эту запись |
-| Не видно старых чатов в VS Code | История чатов — по открытой папке. Откройте ту, из которой чат начинали (обычно `work_dir`) |
-| Codex не запускает хуки | `/hooks` в Codex → доверить; проверить `~/.codex/hooks.json` |
-| Хуки Claude Code не срабатывают | `/hooks`; `./harness doctor`; путь к harness в командах хуков совпадает с текущим (после переноса репозитория — `./harness install`) |
-| «Не закоммичены, их правит и другой чат» | Дождитесь, пока тот чат закончит, и `git -C <kb_root> commit -m "<KEY> …" -- <файл>` |
-| «Похоже на секрет внутри» | Уберите значение из файла; секреты в базе не хранятся |
-| `install` пишет «создан не harness» | Свой файл с тем же именем. Сравните с `*.harness-new` и перенесите нужное, или `install --force` (со старого сделается бэкап) |
-| В скилле остались `{{…}}` | Неизвестная подстановка: `./harness doctor` покажет где; поле добавить в конфиг/`harness_config.py` |
-| `kb.py lint` ругается на ссылку из навигации | Путь в обратных кавычках в `AGENTS.md`/`navigation/*.md` указывает на несуществующий файл |
-| Поиск не находит очевидное | Добавить синонимы в `navigation/glossary.md`, вопрос — в `golden-questions.tsv`, прогнать `kb.py eval` |
-| MCP-инструменты падают на внутренних адресах | Прокси перехватывает внутренний трафик: внутренние домены в `NO_PROXY` вида `.corp.example.com` |
-| Агент не видит нового субагента | Субагент Claude Code виден только в сессиях, начатых после его установки |
-| Хаб не подхватил журнал задачи | В журнале нет `services:`/`tickets:` или ссылки на хаб; `build_hubs.py` ищет по заголовку, имени, тегам, этим полям и `[[…]]` |
-| После переноса репозитория всё сломалось | Пути к инструментам зашиты в хуки и скиллы при установке: `./harness install` из нового места |
+| In a new chat the agent talks about the wrong task | The key is not at the start of the message, or the chat is bound to another task: `switch to OPS-…`. Bindings are in `<state_dir>/session-tasks.json` |
+| The journal was not injected after "OPS-… continue" | The task has no journal (`ls <kb_root>/tasks/ \| grep OPS-…`) — "start a handoff". Or the prefix is not in `tracker.prefixes` |
+| The journal is injected into every chat | The shared folder is bound to a task in `active-tasks.json` (old installation) — delete that entry |
+| Old chats are not visible in VS Code | Chat history is per opened folder. Open the one the chat was started from (usually `work_dir`) |
+| Codex does not run hooks | `/hooks` in Codex → trust; check `~/.codex/hooks.json` |
+| Claude Code hooks do not fire | `/hooks`; `./harness doctor`; the harness path in the hook commands matches the current one (after moving the repository, run `./harness install`) |
+| «Не закоммичены, их правит и другой чат» ("not committed, another chat is editing them too") | Wait until that chat finishes, then `git -C <kb_root> commit -m "<KEY> …" -- <file>` |
+| «похоже на секрет внутри» ("looks like a secret inside") | Remove the value from the file; secrets are not stored in the base |
+| `install` says «создан не harness» ("not created by harness") | Your own file with the same name. Compare it with `*.harness-new` and carry over what you need, or `install --force` (the old one is backed up) |
+| `{{…}}` left in a skill | Unknown placeholder: `./harness doctor` shows where; add the field to the config/`harness_config.py` |
+| `kb.py lint` complains about a navigation link | A backticked path in `AGENTS.md`/`navigation/*.md` points to a file that doesn't exist |
+| Search does not find the obvious | Add synonyms to `navigation/glossary.md` and the question to `golden-questions.tsv`, run `kb.py eval` |
+| MCP tools fail on internal addresses | The proxy intercepts internal traffic: put internal domains into `NO_PROXY` as `.corp.example.com` |
+| The agent does not see a new subagent | A Claude Code subagent is visible only in sessions started after it was installed |
+| A hub did not pick up a task journal | The journal has no `services:`/`tickets:` or link to the hub; `build_hubs.py` searches the title, name, tags, these fields and `[[…]]` |
+| Everything broke after moving the repository | Tool paths are baked into hooks and skills at install time: run `./harness install` from the new location |

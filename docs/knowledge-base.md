@@ -1,88 +1,90 @@
-# База знаний
+**English** · [Русский](ru/knowledge-base.md)
 
-Один git-репозиторий (`paths.kb_root`), который одновременно открывается в Obsidian как vault. `harness install`
-создаёт его из `templates/kb/`, если папки нет. Правила для агентов — `AGENTS.md` в корне базы.
+# Knowledge base
 
-## Структура
+A single git repository (`paths.kb_root`) that also opens in Obsidian as a vault. `harness install` creates it from
+`templates/kb/` if the folder does not exist. Rules for agents are in `AGENTS.md` at the root of the base.
 
-| Папка | Что там |
+## Structure
+
+| Folder | Contents |
 |---|---|
-| `alerts/` | Разборы алертов (RCA) |
-| `duty/` | Обращения и дежурные расследования |
-| `incidents/` | Инциденты |
-| `tasks/<KEY>-<slug>/` | Планы, ADR, доказательства и журнал `handoff.md` задачи |
-| `decisions/` | Принятые решения (ADR), действуют, пока не заменены |
-| `reference/` | Устойчивая справка: где лежит конфиг, как устроен маршрут |
-| `findings/` | Короткие находки агентов по ходу работы |
-| `services/` | Хабы сервисов: «Состояние» и список всех документов |
-| `tickets/` | Хабы задач |
-| `navigation/` | Глоссарий, золотые вопросы, вопросы для `agent_bench` |
-| `exports/` | Выгрузки из других вики: контекст, не истина; поиск их пропускает без `--all` |
+| `alerts/` | Alert investigations (RCA) |
+| `duty/` | Requests and on-call investigations |
+| `incidents/` | Incidents |
+| `tasks/<KEY>-<slug>/` | A task's plans, ADRs, evidence and `handoff.md` journal |
+| `decisions/` | Accepted decisions (ADRs), valid until superseded |
+| `reference/` | Durable reference: where a config lives, how a route works |
+| `findings/` | Short findings agents record along the way |
+| `services/` | Service hubs: "State" and a list of all documents |
+| `tickets/` | Task hubs |
+| `navigation/` | Glossary, golden questions, questions for `agent_bench` |
+| `exports/` | Exports from other wikis: context, not truth; search skips them unless `--all` is given |
 
-Документ начинается с frontmatter (`type`, `date`, `tickets`, `services`, `summary`, `lifecycle`), затем TL;DR в 3–5
-строк. Формат и правила — `AGENTS.md` базы.
+A document starts with frontmatter (`type`, `date`, `tickets`, `services`, `summary`, `lifecycle`), followed by a
+3–5 line TL;DR. Format and rules are in the base's `AGENTS.md`.
 
-## Поиск
+## Search
 
 ```bash
 python3 <harness>/tools/kb.py search "registry 504 timeout"
-python3 <harness>/tools/kb.py search --service payments --since 2026-01-01 "таймаут"
+python3 <harness>/tools/kb.py search --service payments --since 2026-01-01 "timeout"
 python3 <harness>/tools/kb.py list --ticket OPS-1234
 ```
 
-- BM25 по разделам документов, русский стеммер (таймаут/таймаута/таймауты — одно), синонимы из
-  `navigation/glossary.md`, вес у заголовков, `summary`, ключей задач.
-- Выдаёт до 6 документов с подходящим разделом и **диапазоном строк** — агент читает только их
-  (`sed -n 'A,Bp' <path>`), а не файл целиком.
-- `historical`-документы описывают прошлое: агент подтверждает текущее состояние вживую перед тем, как его
-  утверждать.
-- То же через MCP: инструменты `kb_search` и `kb_list` сервера `tools/kb_mcp.py`.
+- BM25 over document sections, Russian and English stemming (таймаут/таймаута/таймауты, timeout/timeouts count as
+  one word), synonyms from `navigation/glossary.md`, extra weight for headings, `summary` and task keys.
+- Returns up to 6 documents with the matching section and a **line range** — the agent reads only those lines
+  (`sed -n 'A,Bp' <path>`), not the whole file.
+- `historical` documents describe the past: the agent confirms the current state live before asserting it.
+- The same over MCP: the `kb_search` and `kb_list` tools of the `tools/kb_mcp.py` server.
 
-Эмбеддинги не используются намеренно: на базе в сотни документов они не дали выигрыша против BM25 с синонимами и
-были на порядок медленнее.
+Embeddings are deliberately not used: on a base of a few hundred documents they gave no gain over BM25 with synonyms
+and were an order of magnitude slower.
 
-## Глоссарий
+## Glossary
 
-`navigation/glossary.md`: строка `- канон: синоним, синоним`. Канон — имя сервиса в нижнем регистре, его пишут в
-`services:` и в `--service`. Добавьте свои сервисы и их внутренние названия — это главный рычаг качества поиска.
-Слишком общие слова («метрики», «логи») не добавляйте: они пометят полбазы.
+`navigation/glossary.md`: one line per entry, `- canonical: synonym, synonym`. The canonical name is the lowercase
+service name; it is what goes into `services:` and `--service`. Add your services and their internal names — this is
+the main lever for search quality. Do not add overly generic words ("metrics", "logs"): they would tag half the base.
 
-## Хабы
+## Hubs
 
-`services/<Имя>.md` и `tickets/<KEY>.md` с полем `hub_match` (регулярка). `build_hubs.py` находит документы, где
-регулярка встречается в заголовке, имени файла, тегах, полях `services`/`tickets` или ссылках `[[…]]`, и
-переписывает список между `<!-- hub:notes -->` и `<!-- /hub:notes -->`. Остальной текст хаба — ваш.
+`services/<Name>.md` and `tickets/<KEY>.md` with a `hub_match` field (a regex). `build_hubs.py` finds documents where
+the regex occurs in the title, file name, tags, `services`/`tickets` fields or `[[…]]` links, and rewrites the list
+between `<!-- hub:notes -->` and `<!-- /hub:notes -->`. The rest of the hub text is yours.
 
-Раздел «Состояние на <дата>» — срез из заметок: что сейчас верно о сервисе, у каждого пункта дата и ссылка на
-источник. Его обновляет скилл `kb-compile`.
+The "Состояние на <date>" (State as of <date>) section is a snapshot drawn from the notes: what is currently true about the service, each
+item with a date and a link to its source. It is updated by the `kb-compile` skill.
 
-## `kb-compile` — раз в неделю
+## `kb-compile` — once a week
 
-Заметки и журналы копятся сами, а «Состояние» в хабах само не обновляется. `kb-compile`:
+Notes and journals accumulate on their own, but the "State" in hubs does not update itself. `kb-compile`:
 
-1. находит документы и журналы задач, появившиеся с прошлого прохода;
-2. переписывает «Состояние» затронутых хабов, убирая опровергнутое;
-3. помечает заменённые документы `lifecycle: superseded` + `superseded_by`;
-4. заводит хаб для темы, на которую ссылаются три и более документа;
-5. переносит принятые решения и устойчивую справку в `decisions/` и `reference/`;
-6. коммитит только свои изменения.
+1. finds documents and task journals that appeared since the previous pass;
+2. rewrites the "State" of the affected hubs, removing what has been disproved;
+3. marks replaced documents with `lifecycle: superseded` + `superseded_by`;
+4. creates a hub for a topic referenced by three or more documents;
+5. moves accepted decisions and durable reference into `decisions/` and `reference/`;
+6. commits only its own changes.
 
-Незаконченные задачи не мешают: их состояние попадёт в хаб как промежуточное. Запускайте раз в неделю и после
-крупных событий (переезд, инцидент, закрытие большой задачи).
+Unfinished tasks are not a problem: their state goes into the hub as interim. Run it once a week and after major
+events (a migration, an incident, closing a large task).
 
-## Проверки
+## Checks
 
 ```bash
-python3 <harness>/tools/kb.py lint    # frontmatter, типы, даты, superseded_by, ссылки навигации
-python3 <harness>/tools/kb.py eval    # золотые вопросы: hit@3 ≥ 80%
+python3 <harness>/tools/kb.py lint    # frontmatter, types, dates, superseded_by, navigation links
+python3 <harness>/tools/kb.py eval    # golden questions: hit@3 ≥ 80%
 ```
 
-Золотые вопросы — `navigation/golden-questions.tsv`: `запрос<TAB>регулярка ожидаемого пути`. Когда поиск
-промахнулся на реальном вопросе, добавьте его сюда — так видно, не стало ли хуже. Вопросы, написанные автором
-документов, завышают оценку: добавляйте формулировки, которыми спрашивают коллеги.
+Golden questions live in `navigation/golden-questions.tsv`: `query<TAB>regex of the expected path`. When search
+misses on a real question, add it here — that shows whether things got worse. Questions written by the documents'
+author inflate the score: add the phrasings your colleagues actually use.
 
 ## Git
 
-Документы коммитятся прямо в `main` с ключом задачи в сообщении: ветка на тикет месяцами держала бы документы вне
-`main`. Агенты коммитят только свои файлы; что не закоммитили — коммитит хук `Stop` ([hooks.md](hooks.md)).
-Remote (GitLab/GitHub) — по желанию; база локальная, пушите, если хотите общую с командой.
+Documents are committed directly to `main` with the task key in the message: a branch per ticket would keep documents
+out of `main` for months. Agents commit only their own files; whatever they leave uncommitted is committed by the
+`Stop` hook ([hooks.md](hooks.md)). A remote (GitLab/GitHub) is optional; the base is local — push it if you want to
+share it with your team.

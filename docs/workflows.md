@@ -1,144 +1,149 @@
-# Повседневная работа
+**English** · [Русский](ru/workflows.md)
 
-## Главное
+# Day-to-day work
 
-1. **Все чаты открывайте из `work_dir`.** Параллельно сколько угодно, в Claude Code и Codex.
-2. **Продолжаете задачу в новом чате — начните сообщение с ключа:** `OPS-1234 продолжаем`. Остальное пишите как обычно.
-3. **Длинная задача — журнал:** «заведи handoff». Назавтра — новый чат с ключом, а не продолжение старого.
-4. **Удалённое агент только читает.** Apply, sync, delete — после вашего «да» на одно действие.
-5. **Знания — в базе.** Агент сначала ищет в ней, законченный разбор кладёт туда же.
-6. **Код — в worktree на ветке с ключом задачи;** push и MR — только по просьбе.
-7. **Правки базы знаний коммитятся сами** в конце каждого ответа агента.
+## The essentials
 
-## Где открывать чат
+1. **Open every chat from `work_dir`.** As many in parallel as you like, in Claude Code and Codex.
+2. **Continuing a task in a new chat — start the message with the key:** `OPS-1234 continue`. Write the rest as usual.
+3. **Long task — journal:** "start a handoff". Next day — a new chat with the key, not a continuation of the old one.
+4. **The agent only reads remote systems.** Apply, sync, delete — after your "yes" to that one action.
+5. **Knowledge goes into the base.** The agent searches it first and puts a finished review there too.
+6. **Code — in a worktree on a branch named after the task key;** push and MR only on request.
+7. **Knowledge-base edits are committed automatically** at the end of every agent response.
 
-Всегда `work_dir`. История чатов в VS Code показывается по открытой папке: одна папка — один общий список. Первое
-сообщение становится названием чата — ключ в начале делает список читаемым.
+## Where to open a chat
 
-Код агент правит не в общем checkout, а в worktree на ветке задачи, чтобы параллельные чаты не делили один
-рабочий каталог:
+Always `work_dir`. VS Code shows chat history per open folder: one folder — one shared list. The first message
+becomes the chat title — a key at the start keeps the list readable.
+
+The agent edits code not in the shared checkout but in a worktree on the task branch, so parallel chats don't
+share one working directory:
 
 ```bash
 git -C ~/work/git/infra worktree add --no-track -b OPS-1234 ~/work/chats/OPS-1234-infra origin/main
 ```
 
-`--no-track` важен: ветка от `origin/main` с отслеживанием main может быть запушена синхронизацией редактора
-прямо в main.
+`--no-track` matters: a branch from `origin/main` that tracks main can be pushed straight into main by the
+editor's sync.
 
-## Когда писать ключ задачи
+## When to write the task key
 
-| Ситуация | Пишете | Что происходит |
+| Situation | You write | What happens |
 |---|---|---|
-| Алерт, вопрос, отчёт | как обычно | журнал не подставляется |
-| Номер задачи в середине фразы | как обычно | ничего — это упоминание |
-| По ходу разговора завели журнал | ничего | агент запускает `start`, чат привязывается сам |
-| Продолжить задачу в новом чате | `OPS-1234 продолжаем` | журнал подставлен, чат привязан |
-| Начали без ключа, журнал есть | `работаем по OPS-1234` | привязка с этого сообщения |
-| Перейти на другую задачу | `переключаемся на OPS-1240` | чат перепривязан |
-| `/compact`, `--resume` | ничего | журнал подставляется сам |
-| `/clear` | ключ заново | у чата новый идентификатор |
+| Alert, question, report | as usual | no journal is injected |
+| Task number in the middle of a sentence | as usual | nothing — it's a mention |
+| A journal was started during the conversation | nothing | the agent runs `start`, the chat is bound automatically |
+| Continue a task in a new chat | `OPS-1234 continue` | journal injected, chat bound |
+| Started without a key, a journal exists | `working on OPS-1234` | bound from this message on |
+| Switch to another task | `switch to OPS-1240` | chat re-bound |
+| `/compact`, `--resume` | nothing | the journal is injected automatically |
+| `/clear` | the key again | the chat gets a new ID |
 
-Подробно — [handoff.md](handoff.md).
+Both English and Russian forms work: `OPS-1234 продолжаем`, `работаем по OPS-1234`, `переключаемся на OPS-1240`.
+Details — [handoff.md](handoff.md).
 
-## Типовые сценарии
+## Typical scenarios
 
-### Алерт или обращение из чата
-
-```text
-разбери алерт https://chat.example.com/team/pl/abc123
-```
-
-Скилл `request-triage`: тред → ключ задачи → горит ли сейчас → поиск похожих случаев в базе → метрики и логи в
-узком окне → причина и решение → документ в `alerts/` или `duty/`. Если вылилось в работу — «заведи handoff для
-OPS-…». Для статьи команде — «оформи это в duty-notes».
-
-### Изменение в Terraform / Terragrunt
+### An alert or request from the chat
 
 ```text
-OPS-1234 нужно добавить S3 bucket для бэкапов в prod. Сделай в worktree, покажи plan, apply не делай.
+triage this alert https://chat.example.com/team/pl/abc123
 ```
 
-Агент проверит ключ, создаст worktree, прочитает версии модулей и backend, внесёт правку, сделает `plan
--lock=false`, покажет итог и закоммитит. Apply — вы сами или отдельным «да, apply этого модуля».
+The `request-triage` skill: thread → task key → is it firing right now → search the knowledge base for similar
+cases → metrics and logs in a narrow window → cause and fix → a document in `alerts/` or `duty/`. If it turned into
+real work — "start a handoff for OPS-…". For an article for the team — "write this up in duty-notes".
+
+### A Terraform / Terragrunt change
+
+```text
+OPS-1234 we need an S3 bucket for backups in prod. Do it in a worktree, show the plan, don't apply.
+```
+
+The agent checks the key, creates a worktree, reads module versions and the backend, makes the change, runs `plan
+-lock=false`, shows the result and commits. Apply — you do it yourself, or with a separate "yes, apply this module".
 
 ### Argo CD / Helm
 
 ```text
-OPS-1234 подними chart ingress-nginx до 4.11 в gitops-репо, покажи helm template diff и argocd app diff.
+OPS-1234 bump the ingress-nginx chart to 4.11 in the gitops repo, show the helm template diff and argocd app diff.
 ```
 
-Изменение — коммитом в Git; синхронизацию делает Argo CD. `argocd app sync` без вашего «да» агент не запустит.
+The change is a commit to Git; Argo CD does the sync. The agent will not run `argocd app sync` without your "yes".
 
-### Задача без ключа
+### A task without a key
 
 ```text
-надо разобраться, почему registry медленно отдаёт образы, заведи задачу
+need to figure out why the registry is slow to serve images, create an issue
 ```
 
-Ключа нет — агент заведёт одну задачу в проекте из конфига и будет работать в ветке с этим ключом.
+No key — the agent creates one issue in the project from the config and works on a branch with that key.
 
-### Инцидент
+### Incident
 
 ```text
-prod отдаёт 502 с 10:15, вот алерт <ссылка>. Разбери, найди причину.
-оформи постмортем по INC-7
+prod has been returning 502 since 10:15, here's the alert <link>. Investigate and find the cause.
+write a postmortem for INC-7
 ```
 
-### Планирование
+### Planning
 
 ```text
-заведи задачу в джире: перенос секретов в облачное хранилище для dev
-оформи эпик про отказ от старого кластера с подзадачами по сервисам
-сделай отчёт по спринту
+create a Jira issue: move secrets to cloud storage for dev
+create an epic for retiring the old cluster with subtasks per service
+make a sprint report
 ```
 
-### Что мы уже знаем
+### What we already know
 
 ```text
-что у нас есть по OPS-1234?
-через kb-scout найди все случаи, когда registry отдавал 504
+what do we have on OPS-1234?
+use kb-scout to find every case where the registry returned 504
 ```
 
-Хук сам подмешивает список документов по ключам задач из сообщения.
+A hook injects the list of documents for task keys in the message on its own.
 
-### Рутина
+### Routine
 
 ```text
-дайджест по алерт-каналу за ночь
-что сейчас горит в alertmanager
-сделай kb-compile                ← раз в неделю
-Сформируй daily report           ← только эта фраза, скилл daily-report
+digest of the alert channel for last night
+what's firing in alertmanager right now
+run kb-compile                   ← once a week
+Сформируй daily report           ← only this exact phrase, daily-report skill
 ```
 
-## Кого из агентов брать
+The daily-report skill fires only on the exact Russian phrase `Сформируй daily report` ("generate the daily report").
 
-| Задача | Лучше |
+## Which agent to use
+
+| Task | Best choice |
 |---|---|
-| Быстрый разбор алерта, вопрос, трекер/вики | любой |
-| Изменение IaC на много файлов с независимым ревью | Codex с профилем `task` или Claude Code + `/code-review` в конце |
-| Инцидент с большим объёмом логов | Codex с профилем `incident` или Claude Code + `kb-scout` |
-| Вторая пара глаз | другой агент: сделал Codex — проверьте в Claude Code, и наоборот |
+| Quick alert triage, a question, tracker/wiki | either |
+| Multi-file IaC change with an independent review | Codex with the `task` profile, or Claude Code + `/code-review` at the end |
+| Incident with a large volume of logs | Codex with the `incident` profile, or Claude Code + `kb-scout` |
+| A second pair of eyes | the other agent: Codex did it — check in Claude Code, and vice versa |
 
-## Экономия контекста
+## Saving context
 
-- Сужайте запрос: сервис, namespace, окно времени. «Логи payments-api за 30 минут до 14:10» лучше «посмотри логи».
-- Широкий поиск — через `kb-scout`: в чат вернётся сводка, а не тысячи строк.
-- Один чат — одна задача. Новая тема — новый чат.
-- На 75% контекста не начинайте новый этап: пусть агент обновит журнал, затем `/compact` или новый чат.
-- Не продолжайте чаты на десятки мегабайт: новый чат + журнал дешевле и точнее.
+- Narrow the request: service, namespace, time window. "payments-api logs for the 30 minutes before 14:10" beats "look at the logs".
+- Broad searches — through `kb-scout`: the chat gets a summary back, not thousands of lines.
+- One chat — one task. New topic — new chat.
+- At 75% context, don't start a new stage: let the agent update the journal, then `/compact` or a new chat.
+- Don't keep going in chats tens of megabytes in size: a new chat + the journal is cheaper and more accurate.
 
-## Команды под рукой
+## Commands at hand
 
 ```bash
 H=~/Projects/agent-harness
 python3 $H/tools/kb.py search "registry 504"
 python3 $H/tools/kb.py list --service vault --since 2026-01-01
-python3 $H/tools/kb.py lint                 # проверка документов
-python3 $H/tools/kb.py eval                 # качество поиска, цель hit@3 ≥ 80%
-python3 $H/tools/build_hubs.py              # пересобрать списки в хабах
-python3 $H/tools/agent_session.py start OPS-1234 short-slug   # журнал (обычно делает агент)
-cat ~/.agents/state/session-tasks.json      # какой чат к какой задаче привязан
+python3 $H/tools/kb.py lint                 # check documents
+python3 $H/tools/kb.py eval                 # search quality, target hit@3 ≥ 80%
+python3 $H/tools/build_hubs.py              # rebuild the lists in hubs
+python3 $H/tools/agent_session.py start OPS-1234 short-slug   # journal (usually done by the agent)
+cat ~/.agents/state/session-tasks.json      # which chat is bound to which task
 ```
 
-Claude Code: `/compact <что сохранить>`, `/clear`, `claude --resume`, `/hooks`, `/mcp`, `/agents`, `Shift+Tab` —
-режимы (обычный / auto / plan). Codex: `/hooks`, `/compact`, `/status`.
+Claude Code: `/compact <what to keep>`, `/clear`, `claude --resume`, `/hooks`, `/mcp`, `/agents`, `Shift+Tab` —
+modes (normal / auto / plan). Codex: `/hooks`, `/compact`, `/status`.

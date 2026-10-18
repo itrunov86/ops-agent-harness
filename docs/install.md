@@ -1,12 +1,14 @@
-# Установка, обновление, удаление
+**English** · [Русский](ru/install.md)
 
-## Требования
+# Install, update, uninstall
 
-- macOS или Linux; Python 3.11+ (`python3 --version`), git.
-- Claude Code и/или Codex — CLI или расширение VS Code.
-- Права на запись в `~/.agents`, `~/.claude`, `~/.codex`, `~/.config`.
+## Requirements
 
-## Установка
+- macOS or Linux; Python 3.11+ (`python3 --version`), git.
+- Claude Code and/or Codex — CLI or VS Code extension.
+- Write access to `~/.agents`, `~/.claude`, `~/.codex`, `~/.config`.
+
+## Installation
 
 ```bash
 git clone https://github.com/<you>/agent-harness ~/Projects/agent-harness
@@ -14,50 +16,51 @@ cd ~/Projects/agent-harness
 ./harness init
 ```
 
-`init` спрашивает основные значения (Enter оставляет пример) и пишет `~/.config/agent-harness/config.toml`. Без
-вопросов: `./harness init --defaults`, потом поправить файл руками. Все параметры — [configuration.md](configuration.md).
+`init` asks for the main values (Enter keeps the example) and writes `~/.config/agent-harness/config.toml`. To skip
+the questions: `./harness init --defaults`, then edit the file by hand. All parameters — [configuration.md](configuration.md).
 
 ```bash
-./harness install --dry-run   # список действий, ничего не меняется
+./harness install --dry-run   # list of actions, nothing changes
 ./harness install
 ./harness doctor
 ```
 
-Что делает `install`:
+What `install` does:
 
-| Шаг | Куда | Что |
+| Step | Where | What |
 |---|---|---|
-| Скиллы | `~/.agents/skills/<имя>/` | копия из `skills/` и `team-skills/` с заполненными подстановками, метка `.harness-managed` |
-| Скиллы для Claude | `~/.claude/skills/<имя>` | симлинк на копию выше |
-| Правила | `~/.codex/AGENTS.md`, `~/.claude/CLAUDE.md` | из `templates/global/`; CLAUDE.md импортирует AGENTS.md |
-| Субагенты | `~/.claude/agents/`, `~/.codex/agents/` | `kb-scout`; для Codex ещё `coder`, `reviewer`, `incident_worker` |
-| Профили Codex | `~/.codex/task.config.toml`, `incident.config.toml` | оркестраторы задач и инцидентов |
-| Хуки | `~/.claude/settings.json`, `~/.codex/hooks.json` | добавляются к вашим, ваши не удаляются |
-| База знаний | `paths.kb_root` | если папки нет: шаблон из `templates/kb/`, `git init`, первый коммит |
-| Папки | `paths.work_dir`, `paths.state_dir` | создаются |
-| Манифест | `<state_dir>/harness-manifest.json` | что поставлено — для `doctor` и `uninstall` |
+| Skills | `~/.agents/skills/<name>/` | a copy from `skills/` and `team-skills/` with placeholders filled in, marked `.harness-managed` |
+| Skills for Claude | `~/.claude/skills/<name>` | symlink to the copy above |
+| Rules | `~/.codex/AGENTS.md`, `~/.claude/CLAUDE.md` | from `templates/global/`; CLAUDE.md imports AGENTS.md |
+| Subagents | `~/.claude/agents/`, `~/.codex/agents/` | `kb-scout`; for Codex also `coder`, `reviewer`, `incident_worker` |
+| Codex profiles | `~/.codex/task.config.toml`, `incident.config.toml` | task and incident orchestrators |
+| Hooks | `~/.claude/settings.json`, `~/.codex/hooks.json` | added to yours, yours are not removed |
+| Knowledge base | `paths.kb_root` | if the folder doesn't exist: template from `templates/kb/`, `git init`, first commit |
+| Folders | `paths.work_dir`, `paths.state_dir` | created |
+| Manifest | `<state_dir>/harness-manifest.json` | what was installed — for `doctor` and `uninstall` |
 
-### Чужие файлы
+### Files you already have
 
-`install` не перезаписывает то, что создали не вы через harness:
+`install` does not overwrite anything you created outside the harness:
 
-- свой `~/.codex/AGENTS.md` остаётся, рядом появляется `AGENTS.md.harness-new` — сравните и перенесите нужное;
-- свой скилл с тем же именем пропускается;
-- `install --force` заменяет такие файлы, предварительно сохранив их в `~/.agents/backups/<время>/`.
+- your own `~/.codex/AGENTS.md` stays, and `AGENTS.md.harness-new` appears next to it — compare them and carry over what you need;
+- your own skill with the same name is skipped;
+- `install --force` replaces such files, saving them first to `~/.agents/backups/<timestamp>/`.
 
-Перед любой правкой `settings.json` и `hooks.json` делается бэкап туда же. Существующая база знаний не трогается.
+Before any edit to `settings.json` and `hooks.json`, a backup goes to the same place. An existing knowledge base is left untouched.
 
-### После установки
+### After installation
 
-1. **Codex:** один раз выполнить `/hooks` и доверить новые хуки — без этого Codex их не запускает.
-2. **MCP-сервер sre-toolbox:** `./harness mcp` создаёт `mcp/sre-toolbox/.venv`, ставит зависимости и кладёт
-   `config.yaml` из примера — впишите адреса своих систем и токены по `mcp/sre-toolbox/docs/install.md`.
-   `./harness mcp --register` подключает его к Claude Code (`claude mcp add`) и Codex (`~/.codex/config.toml`),
-   сделав бэкап. Без MCP агенты ищут по базе через `python3 <harness>/tools/kb.py search`.
-3. **Другие MCP-серверы** — [mcp.md](mcp.md).
-4. **Проверка:** открыть новый чат в `work_dir`, спросить «какие у тебя скиллы?» и «найди в базе payments».
+1. **Codex:** run `/hooks` once and trust the new hooks — without this Codex will not run them.
+2. **sre-toolbox MCP server:** `./harness mcp` creates `mcp/sre-toolbox/.venv`, installs dependencies and puts
+   `config.yaml` in place from the example — fill in your systems' addresses and tokens following
+   `mcp/sre-toolbox/docs/install.md`. `./harness mcp --register` connects it to Claude Code (`claude mcp add`) and
+   Codex (`~/.codex/config.toml`), making a backup first. Without MCP, agents search the knowledge base via
+   `python3 <harness>/tools/kb.py search`.
+3. **Other MCP servers** — [mcp.md](mcp.md).
+4. **Check:** open a new chat in `work_dir`, ask "what skills do you have?" and "search the knowledge base for payments".
 
-## Обновление
+## Updating
 
 ```bash
 cd ~/Projects/agent-harness
@@ -66,26 +69,26 @@ git pull
 ./harness doctor
 ```
 
-`doctor` сообщает, если установленные скиллы отстают от репозитория. Повторный `install` безопасен: обновляет
-поставленное harness, хуки не дублирует.
+`doctor` reports when installed skills lag behind the repository. Re-running `install` is safe: it updates what
+the harness installed and does not duplicate hooks.
 
-Свои правки скиллов делайте в репозитории (или своём форке), а не в `~/.agents/skills` — там их перезапишет
-следующий `install`. Как — [customizing.md](customizing.md).
+Make your own skill edits in the repository (or your fork), not in `~/.agents/skills` — the next `install` will
+overwrite them there. How — [customizing.md](customizing.md).
 
-## Удаление
+## Uninstalling
 
 ```bash
 ./harness uninstall --dry-run
 ./harness uninstall
 ```
 
-Удаляются скиллы, симлинки, правила, агенты и профили, поставленные harness, и его хуки из `settings.json` и
-`hooks.json` (ваши хуки остаются). База знаний, конфиг и бэкапы остаются. Вернуть свои прежние файлы — из
-`~/.agents/backups/<время>/`.
+This removes the skills, symlinks, rules, agents and profiles installed by the harness, and its hooks from
+`settings.json` and `hooks.json` (your hooks stay). The knowledge base, config and backups stay. To restore your
+previous files — `~/.agents/backups/<timestamp>/`.
 
-## Проверка без установки
+## Checking without installing
 
 ```bash
-python3 -m unittest discover -s tests -v   # тесты на временном HOME, ваши настройки не трогаются
-./harness render skills/handoff/SKILL.md     # как выглядит скилл с вашими значениями
+python3 -m unittest discover -s tests -v   # tests run on a temporary HOME, your settings are untouched
+./harness render skills/handoff/SKILL.md     # what a skill looks like with your values
 ```

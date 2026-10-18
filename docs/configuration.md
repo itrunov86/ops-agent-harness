@@ -1,70 +1,72 @@
-# Конфиг
+**English** · [Русский](ru/configuration.md)
 
-Один файл на машину: `~/.config/agent-harness/config.toml` (другой путь — переменная `AGENT_HARNESS_CONFIG`).
-Образец со всеми полями — [`config.example.toml`](../config.example.toml). Секретов в конфиге нет и быть не должно.
+# Config
 
-После правки конфига выполните `./harness install`: значения подставляются в скиллы и правила при установке.
-Инструменты (`kb.py`, хуки) читают конфиг при каждом запуске, им переустановка не нужна.
+One file per machine: `~/.config/agent-harness/config.toml` (a different path — the `AGENT_HARNESS_CONFIG` variable).
+A sample with every field — [`config.example.toml`](../config.example.toml). There are no secrets in the config, and there must not be.
+
+After editing the config, run `./harness install`: values are substituted into skills and rules at install time.
+The tools (`kb.py`, hooks) read the config on every run and need no reinstall.
 
 ## `[org]`
 
-| Поле | По умолчанию | Зачем |
+| Field | Default | Purpose |
 |---|---|---|
-| `name` | `Acme` | Имя организации в шапке правил агентов |
+| `name` | `Acme` | Organization name in the header of the agent rules |
 
 ## `[paths]`
 
-| Поле | По умолчанию | Зачем |
+| Field | Default | Purpose |
 |---|---|---|
-| `kb_root` | `~/kb` | База знаний: git-репозиторий и Obsidian vault. Её ищет `kb.py`, в неё пишут журналы и автокоммит |
-| `work_dir` | `~/work` | Общая папка, из которой открываются все чаты. История чатов в VS Code показывается по папке — одна папка держит весь список |
-| `code_root` | — | Где лежат рабочие репозитории; нужен `agent_bench.py` |
-| `reports_dir` | `~/work/reports` | Куда `agent_bench.py` кладёт результаты |
-| `state_dir` | `~/.agents/state` | Служебное: привязки чатов к журналам, автокоммит, пороги контекста, манифест установки |
+| `kb_root` | `~/kb` | Knowledge base: a Git repository and Obsidian vault. `kb.py` searches it; journals and auto-commit write to it |
+| `work_dir` | `~/work` | The shared folder all chats are opened from. VS Code shows chat history per folder — one folder keeps the whole list |
+| `code_root` | — | Where your work repositories live; needed by `agent_bench.py` |
+| `reports_dir` | `~/work/reports` | Where `agent_bench.py` puts its results |
+| `state_dir` | `~/.agents/state` | Internal: chat-to-journal bindings, auto-commit, context thresholds, install manifest |
 
 ## `[tracker]`
 
-| Поле | По умолчанию | Зачем |
+| Field | Default | Purpose |
 |---|---|---|
-| `prefixes` | `["OPS", "INC"]` | Префиксы ключей задач. По ним хуки находят задачу в сообщении, `kb.py` — документы, автокоммит — ключ для сообщения коммита |
-| `example` | `<первый префикс>-1234` | Пример ключа в скиллах и правилах |
-| `project` | `OPS` | Куда агент заводит задачу, если ключа нет |
-| `issue_type` | `Task` | Тип такой задачи |
-| `assignee` | — | Исполнитель по умолчанию (логин в трекере) |
-| `url` | — | Адрес трекера для ссылок |
+| `prefixes` | `["OPS", "INC"]` | Task key prefixes. Hooks use them to find the task in a message, `kb.py` to find documents, auto-commit to get the key for the commit message |
+| `example` | `<first prefix>-1234` | Example key in skills and rules |
+| `project` | `OPS` | Where the agent creates an issue if there is no key |
+| `issue_type` | `Task` | Type of that issue |
+| `assignee` | — | Default assignee (tracker login) |
+| `url` | — | Tracker address for links |
 
 ## `[wiki]`, `[chat]`, `[mcp]`
 
-| Поле | Зачем |
+| Field | Purpose |
 |---|---|
-| `wiki.space` | Пространство вики для статей дежурства, постмортемов, отчётов спринта |
-| `chat.url` | Адрес корпоративного чата: скиллы разбирают ссылки на треды |
-| `chat.alert_channels` | Каналы алертов для `mattermost-alerts-digest` и `request-triage` |
-| `mcp.hub` | Имя основного MCP-сервера интеграций: скиллы и `kb-scout` ссылаются на его инструменты как `mcp__<hub>__…` |
+| `wiki.space` | Wiki space for on-call articles, postmortems, sprint reports |
+| `chat.url` | Corporate chat address: skills parse thread links |
+| `chat.alert_channels` | Alert channels for `mattermost-alerts-digest` and `request-triage` |
+| `mcp.hub` | Name of the main integrations MCP server: skills and `kb-scout` refer to its tools as `mcp__<hub>__…` |
 
 ## `[agents]`
 
-| Поле | По умолчанию | Зачем |
+| Field | Default | Purpose |
 |---|---|---|
-| `claude` | `true` | Ставить скиллы (симлинками), агентов, правила и хуки для Claude Code |
-| `codex` | `true` | То же для Codex |
+| `claude` | `true` | Install skills (as symlinks), agents, rules and hooks for Claude Code |
+| `codex` | `true` | The same for Codex |
 
 ## `[skills]`
 
-| Поле | По умолчанию | Зачем |
+| Field | Default | Purpose |
 |---|---|---|
-| `team` | `true` | Ставить командные скиллы из `team-skills/` (постмортем, эпики, спринт, вики, отчёт подрядчика) |
-| `exclude` | `[]` | Имена скиллов, которые не нужны, например `["yandex-cloud-devops", "daily-report"]` |
+| `team` | `true` | Install team skills from `team-skills/` (postmortem, epics, sprint, wiki, contractor report) |
+| `exclude` | `[]` | Names of skills you don't need, e.g. `["yandex-cloud-devops", "daily-report"]` |
 
 ## `[hooks]`
 
-| Поле | По умолчанию | Зачем |
+| Field | Default | Purpose |
 |---|---|---|
-| `handoff_thresholds` | `[50, 75]` | На каком заполнении контекста (%) хук просит обновить журнал; на последнем — ещё и предложить `/compact`. Переопределяется переменной `AGENT_HANDOFF_THRESHOLDS=60,85` |
-| `autocommit` | `true` | Коммитить правки агента в `kb_root` в конце каждого ответа |
-| `kb_context` | `true` | Хук `kb.py hook`: по ключам задач из сообщения подмешивает список документов о них |
+| `handoff_thresholds` | `[50, 75]` | At which context usage (%) the hook asks to update the journal; at the last one it also suggests `/compact`. Overridden by the `AGENT_HANDOFF_THRESHOLDS=60,85` variable |
+| `autocommit` | `true` | Commit the agent's edits in `kb_root` at the end of every response |
+| `kb_context` | `true` | The `kb.py hook` hook: injects the list of documents for task keys found in the message |
 
-## Подстановки
+## Placeholders
 
-Какое поле конфига становится какой подстановкой в скиллах — таблица в [CONTRIBUTING.md](../CONTRIBUTING.md).
-Посмотреть результат для любого файла: `./harness render <путь>`.
+Which config field becomes which placeholder in the skills — see the table in [CONTRIBUTING.md](../CONTRIBUTING.md).
+To see the result for any file: `./harness render <path>`.

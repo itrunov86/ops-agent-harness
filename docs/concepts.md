@@ -1,66 +1,70 @@
-# Как устроен harness
+**English** · [Русский](ru/concepts.md)
 
-Harness — всё, что окружает модель и превращает её в рабочего агента: правила, скиллы, инструменты, память и
-автоматика. Модель вы не меняете; меняете обвязку, и агент начинает работать по вашим правилам, находить ваши
-знания и не терять контекст длинных задач.
+# How the harness works
+
+The harness is everything around the model that turns it into a working agent: rules, skills, tools, memory and
+automation. You don't change the model; you change the harness, and the agent starts working by your rules,
+finding your knowledge and keeping the context of long tasks.
 
 ```mermaid
 flowchart LR
-    U[Вы] -->|промпт| A[Claude Code / Codex]
-    R[Правила<br/>~/.codex/AGENTS.md] --> A
-    S[Скиллы<br/>~/.agents/skills] --> A
-    H[Хуки<br/>agent_session.py, kb.py] <--> A
-    A -->|чтение| M[MCP: трекер, вики,<br/>чат, метрики, логи]
-    A -->|поиск, запись| KB[(База знаний<br/>git + Obsidian)]
-    H -->|журнал задачи| KB
-    H -->|автокоммит| KB
-    A -->|широкий поиск| SC[Субагент kb-scout]
+    U[You] -->|prompt| A[Claude Code / Codex]
+    R[Rules<br/>~/.codex/AGENTS.md] --> A
+    S[Skills<br/>~/.agents/skills] --> A
+    H[Hooks<br/>agent_session.py, kb.py] <--> A
+    A -->|read| M[MCP: tracker, wiki,<br/>chat, metrics, logs]
+    A -->|search, write| KB[(Knowledge base<br/>git + Obsidian)]
+    H -->|task journal| KB
+    H -->|auto-commit| KB
+    A -->|broad search| SC[kb-scout subagent]
     SC --> KB
 ```
 
-## Части
+## Parts
 
-**Правила** — один файл `~/.codex/AGENTS.md`, его читает Codex, а Claude Code подключает импортом из
-`~/.claude/CLAUDE.md`. Так оба агента ведут себя одинаково. Главное в правилах: удалённые системы только читаются,
-запись требует явного подтверждения одного конкретного действия, изменения инфраструктуры идут через Git, секреты не
-попадают в чат и документы, у каждой правки в рабочем репозитории есть ключ задачи.
+**Rules** — a single file, `~/.codex/AGENTS.md`; Codex reads it, and Claude Code pulls it in through an import from
+`~/.claude/CLAUDE.md`. That way both agents behave the same. The core of the rules: remote systems are read-only,
+a write requires explicit confirmation of one concrete action, infrastructure changes go through Git, secrets do
+not end up in the chat or in documents, and every change in a work repository has a task key.
 
-**Скиллы** — инструкции под типовую задачу в `~/.agents/skills/<имя>/SKILL.md`. Агент включает скилл сам, когда
-просьба совпадает с описанием, или по явному вызову (`/request-triage` в Claude Code). Скилл описывает шаги, что
-проверить, какие инструменты взять и чем закончить (документ, задача, страница). Codex читает этот каталог
-напрямую, у Claude Code — симлинки в `~/.claude/skills/`.
+**Skills** — instructions for a typical task in `~/.agents/skills/<name>/SKILL.md`. The agent activates a skill on
+its own when a request matches its description, or on an explicit call (`/request-triage` in Claude Code). A skill
+describes the steps, what to check, which tools to use and how to finish (a document, an issue, a page). Codex
+reads this directory directly; Claude Code gets symlinks in `~/.claude/skills/`.
 
-**База знаний** — git-репозиторий, который одновременно открывается как Obsidian vault. В ней разборы алертов,
-обращения, инциденты, решения (ADR), справка, журналы задач и короткие находки агентов. `kb.py` ищет по ней (BM25,
-русский стеммер, синонимы из глоссария) и выдаёт не файлы целиком, а разделы с номерами строк — агент читает только
-их. Хабы (`services/<Имя>.md`, `tickets/<KEY>.md`) держат текущее состояние сервиса или задачи и список всех
-документов о нём.
+**Knowledge base** — a Git repository that also opens as an Obsidian vault. It holds alert reviews, requests,
+incidents, decisions (ADRs), reference material, task journals and short agent findings. `kb.py` searches it (BM25,
+a Russian stemmer, synonyms from the glossary) and returns not whole files but sections with line numbers — the
+agent reads only those. Hubs (`services/<Name>.md`, `tickets/<KEY>.md`) hold the current state of a service or task
+and a list of all documents about it.
 
-**Журналы задач** — `tasks/<KEY>-<slug>/handoff.md`. Длинная задача не помещается в один чат: контекст сжимается,
-чат закрывается. Журнал хранит цель, текущее состояние, следующий шаг, решения и грабли; хук подставляет его в
-начало нового чата, и агент продолжает с места остановки.
+**Task journals** — `tasks/<KEY>-<slug>/handoff.md`. A long task does not fit into one chat: context gets
+compacted, the chat gets closed. The journal stores the goal, current state, next step, decisions and pitfalls; a
+hook injects it at the start of a new chat, and the agent picks up where it left off.
 
-**Хуки** — команды, которые агент вызывает на событиях (начало чата, сообщение, вызов инструмента, конец ответа,
-сжатие). Через них работают журналы, напоминания о заполнении контекста, подмешивание документов по ключам задач и
-автокоммит базы знаний. Подробно — [hooks.md](hooks.md).
+**Hooks** — commands the agent runs on events (chat start, message, tool call, end of a response, compaction).
+They power the journals, context-usage reminders, injecting documents for task keys, and the knowledge-base
+auto-commit. Details — [hooks.md](hooks.md).
 
-**Субагенты** — отдельные агенты с узкой ролью. `kb-scout` только читает и возвращает короткую сводку: широкий поиск
-по сотне файлов не забивает контекст основного чата. Для Codex есть оркестратор задач (`coder` реализует,
-`reviewer` независимо проверяет) и инцидентов (`incident_worker` собирает доказательства).
+**Subagents** — separate agents with a narrow role. `kb-scout` only reads and returns a short summary: a broad
+search across a hundred files does not flood the main chat's context. For Codex there is a task orchestrator
+(`coder` implements, `reviewer` independently checks) and an incident orchestrator (`incident_worker` gathers
+evidence).
 
-**Конфиг** — `~/.config/agent-harness/config.toml`: пути, префиксы задач, трекер, вики, чат, имя MCP-сервера.
-Всё, что зависит от места работы, — только здесь. Скиллы и правила в репозитории написаны с подстановками
-(`{{KB_ROOT}}`, `{{TICKET_EXAMPLE}}`), `harness install` заполняет их значениями из конфига.
+**Config** — `~/.config/agent-harness/config.toml`: paths, task prefixes, tracker, wiki, chat, MCP server name.
+Everything that depends on the workplace lives only here. The skills and rules in the repository are written with
+placeholders (`{{KB_ROOT}}`, `{{TICKET_EXAMPLE}}`), and `harness install` fills them in with values from the config.
 
-## Принципы
+## Principles
 
-1. **Чтение по умолчанию, запись по подтверждению.** Агент свободно читает и диагностирует; любое изменение в
-   облаке, кластере, трекере или чате — только после вашего «да» на одно действие.
-2. **Знание живёт в базе, а не в чате.** Чат закончится, документ останется. Разбор алерта заканчивается файлом в
-   базе, длинная задача — журналом.
-3. **Агент ищет раньше, чем копает.** Перед дорогим разбором логов и метрик — поиск по базе: возможно, это уже было.
-4. **Контекст — ресурс.** Узкие запросы, сводки вместо сырых данных, широкий поиск — субагенту, длинная задача —
-   журнал и `/compact`.
-5. **Одна папка для всех чатов.** Задачу различает не папка, а чат: ключ задачи в первом сообщении привязывает
-   журнал. Так удобно вести несколько чатов параллельно.
-6. **Переносимость.** Ничего специфичного для организации в репозитории; переезд — новый конфиг и `install`.
+1. **Read by default, write on confirmation.** The agent reads and diagnoses freely; any change in the cloud,
+   cluster, tracker or chat happens only after your "yes" to that one action.
+2. **Knowledge lives in the base, not in the chat.** The chat will end, the document will stay. An alert review
+   ends with a file in the knowledge base, a long task with a journal.
+3. **The agent searches before it digs.** Before an expensive log and metrics dive — a knowledge-base search: this
+   may have happened before.
+4. **Context is a resource.** Narrow queries, summaries instead of raw data, broad searches go to a subagent, long
+   tasks get a journal and `/compact`.
+5. **One folder for all chats.** A task is told apart not by the folder but by the chat: the task key in the first
+   message binds the journal. This makes it easy to run several chats in parallel.
+6. **Portability.** Nothing organization-specific in the repository; moving means a new config and `install`.

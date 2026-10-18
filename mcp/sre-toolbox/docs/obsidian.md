@@ -1,54 +1,56 @@
-# Knowledge base через Obsidian
+**English** · [Русский](ru/obsidian.md)
 
-← [Обратно в README](../README.md)
+# Knowledge base with Obsidian
 
-Самый мощный приём экономии токенов — больше, чем все остальные вместе взятые. Потому что он избавляет от необходимости каждый раз заново «открывать» одни и те же проблемы.
+← [Back to README](../README.md)
 
----
-
-## Идея
-
-У SRE-команды есть неявная общая память: «эта проблема была год назад, мы тогда рестартовали Redis», «вот этот сервис каждый понедельник в 9 утра тормозит из-за крон-джобы», «runbook для алерта X лежит у Васи в личных заметках». Эта память живёт в головах, чатах и закладках, и Claude её не видит. Поэтому каждый раз он начинает с нуля и тратит токены на повторный анализ.
-
-Obsidian-vault превращает эту память в локальную базу данных, которую Claude умеет искать через MCP:
-
-- **runbooks/** — что делать при конкретных алертах.
-- **postmortems/** — итоги прошлых инцидентов.
-- **services/** — описания сервисов: владелец, зависимости, SLO, особенности.
-- **patterns/** — типичные паттерны деградации.
-- **glossary.md** — словарь внутренних терминов.
-
-MCP-сервер индексирует vault в памяти (просто ходит по `*.md`), и tools `obsidian_search`, `obsidian_read_note`, `obsidian_append_finding` дают Claude к нему доступ.
+The most powerful token-saving technique — more than all the others combined. It removes the need to "rediscover" the same problems over and over.
 
 ---
 
-## Экономика
+## The idea
 
-Сравнение «холодного» и «горячего» разбора одного и того же алерта:
+An SRE team has an implicit shared memory: "we had this problem a year ago, we restarted Redis back then", "this service slows down every Monday at 9 a.m. because of a cron job", "the runbook for alert X is in Vasya's personal notes". This memory lives in people's heads, chats and bookmarks, and the agent (Claude Code or Codex) cannot see it. So every time it starts from scratch and spends tokens on repeating the analysis.
 
-| Шаг | Без Obsidian | С Obsidian |
+An Obsidian vault turns this memory into a local database that the agent can search through MCP:
+
+- **runbooks/** — what to do for specific alerts.
+- **postmortems/** — outcomes of past incidents.
+- **services/** — service descriptions: owner, dependencies, SLO, quirks.
+- **patterns/** — typical degradation patterns.
+- **glossary.md** — a glossary of internal terms.
+
+The MCP server indexes the vault in memory (it simply walks `*.md`), and the tools `obsidian_search`, `obsidian_read_note`, `obsidian_append_finding` give the agent access to it.
+
+---
+
+## Economics
+
+Comparing a "cold" and a "warm" investigation of the same alert:
+
+| Step | Without Obsidian | With Obsidian |
 |-----|--------------|-----------|
-| Понять, что значит алерт | Тянем 3-5K токенов из VM + VictoriaLogs + контекст пользователя | `obsidian_search("HighErrorRate checkout")` → 500 токенов из runbook |
-| Понять, был ли похожий инцидент | Не сможет узнать — нет такой информации | `obsidian_search` находит постмортем годовалой давности — 800 токенов |
-| Знать, кто owner | Дёргаем kube-аннотации, лейблы, гадаем | В `services/checkout.md` написано прямо — 50 токенов |
-| Сформулировать гипотезу | На основе сырых данных, может промахнуться | На основе уже описанных паттернов |
-| **Итого вход в модель** | **~20-50K токенов** | **~2-5K токенов** |
+| Understand what the alert means | Pull 3-5K tokens from VM + VictoriaLogs + user context | `obsidian_search("HighErrorRate checkout")` → 500 tokens from a runbook |
+| Find out whether there was a similar incident | Cannot find out — no such information | `obsidian_search` finds a year-old postmortem — 800 tokens |
+| Know who the owner is | Poke kube annotations, labels, guess | `services/checkout.md` says it directly — 50 tokens |
+| Form a hypothesis | Based on raw data, may miss | Based on already documented patterns |
+| **Total model input** | **~20-50K tokens** | **~2-5K tokens** |
 
-Экономия 10x — типичный результат. И, что важно, **качество ответа выше**: Claude опирается на проверенный опыт команды, а не угадывает по логам.
+A 10x saving is a typical result. And, importantly, **the answer quality is higher**: the agent relies on the team's proven experience instead of guessing from logs.
 
 ---
 
-## Рекомендуемая структура vault
+## Recommended vault structure
 
 ```
 SRE-vault/
-├── glossary.md                          # словарь сервисов, терминов, owners
+├── glossary.md                          # glossary of services, terms, owners
 ├── services/
-│   ├── checkout-api.md                  # описание сервиса
+│   ├── checkout-api.md                  # service description
 │   ├── payment-service.md
 │   └── ...
 ├── runbooks/
-│   ├── high-error-rate.md               # один runbook = одно имя алерта
+│   ├── high-error-rate.md               # one runbook = one alert name
 │   ├── db-connection-pool-exhausted.md
 │   ├── disk-space-low.md
 │   └── ...
@@ -57,17 +59,17 @@ SRE-vault/
 │   ├── 2024-08-02-payment-degradation.md
 │   └── ...
 ├── patterns/
-│   ├── monday-morning-cron-spike.md     # повторяющиеся паттерны
+│   ├── monday-morning-cron-spike.md     # recurring patterns
 │   └── deploy-rollback-checklist.md
-└── findings/                            # сюда Claude пишет автозаметки
+└── findings/                            # Claude writes auto-notes here
     └── 2026-05-18-...md
 ```
 
 ---
 
-## Шаблон runbook'а
+## Runbook template
 
-Хороший runbook структурирован — это помогает и людям, и Claude:
+A good runbook is structured — this helps both people and the agent:
 
 ```markdown
 ---
@@ -77,35 +79,35 @@ severity: critical
 tags: [runbook, http, payment]
 ---
 
-# HighErrorRate на checkout-api
+# HighErrorRate on checkout-api
 
-## Что это значит
-Доля 5xx-ответов > 5% за последние 5 минут.
+## What it means
+Share of 5xx responses > 5% over the last 5 minutes.
 
-## Первичная проверка
+## Initial check
 1. vm_query: `sum(rate(http_requests_total{service="checkout-api",code=~"5.."}[5m]))`
-2. vl_query по сервису с режимом patterns
-3. Был ли деплой в последние 30 минут
+2. vl_query for the service in patterns mode
+3. Was there a deploy in the last 30 minutes
 
-## Типичные причины
-- Деплой регрессии — rollback
-- Падение зависимости payment-service
-- Лимит коннекшнов к БД
+## Typical causes
+- Regression deploy — rollback
+- payment-service dependency failure
+- DB connection limit
 
-## Действия
+## Actions
 1. Rollback: argocd app rollback checkout-api
-2. Если payment-service: …
-3. Если БД: …
+2. If payment-service: …
+3. If DB: …
 
-## Эскалация
-@checkout-team в Slack #incident-checkout
+## Escalation
+@checkout-team in Slack #incident-checkout
 ```
 
-При таком формате Claude по запросу `HighErrorRate checkout` получает 300-500 токенов готового плана действий вместо 20K токенов сырых логов.
+With this format, a request for `HighErrorRate checkout` gives the agent 300-500 tokens of a ready action plan instead of 20K tokens of raw logs.
 
 ---
 
-## Шаблон постмортема
+## Postmortem template
 
 ```markdown
 ---
@@ -120,30 +122,30 @@ tags: [postmortem, payment-service]
 # Outage checkout-api 2026-05-18
 
 ## TL;DR
-Деплой checkout-api в 14:18 содержал регрессию обработки таймаутов в
-коде payment_service.process_refund. Error rate подскочил до 23%.
-Rollback в 14:47 решил проблему.
+The checkout-api deploy at 14:18 contained a timeout-handling regression in
+payment_service.process_refund. Error rate jumped to 23%.
+A rollback at 14:47 fixed the problem.
 
 ## Timeline
 - 14:18 — deploy checkout-api commit a3f1b2
 - 14:23 — HighErrorRate fires
-- 14:31 — дежурный начал разбор
-- 14:45 — найден коммит, принят rollback
-- 14:47 — rollback завершён, метрики в норме
+- 14:31 — on-call engineer started the investigation
+- 14:45 — commit found, rollback decided
+- 14:47 — rollback finished, metrics back to normal
 
-## Что мы узнали
-Коммит a3f1b2 поменял timeout с 5s на 500ms.
+## What we learned
+Commit a3f1b2 changed the timeout from 5s to 500ms.
 
 ## Action items
-- [ ] Добавить integration test на retry-логику
-- [ ] Сделать deploy canary > 5 минут
+- [ ] Add an integration test for the retry logic
+- [ ] Make the deploy canary > 5 minutes
 ```
 
-Спустя полгода `obsidian_search("payment_service refund timeout")` найдёт этот постмортем за 100 мс и Claude поймёт, что подобная проблема уже была.
+Six months later, `obsidian_search("payment_service refund timeout")` will find this postmortem in 100 ms, and the agent will see that a similar problem has happened before.
 
 ---
 
-## Шаблон описания сервиса
+## Service description template
 
 ```markdown
 ---
@@ -159,68 +161,68 @@ tags: [service, payment]
 
 # checkout-api
 
-## Назначение
-Принимает запросы на оформление заказов от веб и моб приложений.
+## Purpose
+Accepts order checkout requests from the web and mobile apps.
 
-## Зависимости
-- payment-service (синхронно)
-- inventory-service (синхронно)
-- redis-checkout (cache, асинхронно)
+## Dependencies
+- payment-service (synchronous)
+- inventory-service (synchronous)
+- redis-checkout (cache, asynchronous)
 - postgres-checkout (state)
 
-## Особенности
-- Пиковая нагрузка в пятницу 18:00-22:00.
-- Каждый понедельник в 9:00 — фоновая cron-job rebuilds-cart-cache, генерирует
-  всплеск CPU (это нормально).
+## Quirks
+- Peak load on Friday 18:00-22:00.
+- Every Monday at 9:00 the background cron job rebuilds-cart-cache generates
+  a CPU spike (this is normal).
 
 ## Owner
 @vasily-petrov
 
-## Runbook'и
-- [HighErrorRate](../runbooks/high-error-rate.md)
-- [HighLatency](../runbooks/high-latency-checkout.md)
+## Runbooks
+- [HighErrorRate](../../runbooks/high-error-rate.md)
+- [HighLatency](../../runbooks/high-latency-checkout.md)
 ```
 
 ---
 
 ## Tools
 
-Поиск по общей базе знаний harness — `kb_search` / `kb_list` (через `kb.py`, путь — `obsidian.kb_tool`,
-см. [tools.md](./tools.md)); `obsidian_*` работают с vault из `obsidian.vault_path`.
+Search across the shared harness knowledge base is `kb_search` / `kb_list` (via `kb.py`, path — `obsidian.kb_tool`,
+see [tools.md](./tools.md)); `obsidian_*` work with the vault from `obsidian.vault_path`.
 
-| Tool | Назначение |
+| Tool | Purpose |
 |------|-----------|
-| `obsidian_search(query, top_k)` | Семантический-ish поиск по vault. Простой term-overlap скоринг, бонус за попадание в заголовок/имя файла. Возвращает snippets, не файлы целиком. |
-| `obsidian_read_note(path)` | Прочитать конкретную заметку, найденную через search. Лимит `max_note_chars` (по умолчанию 8000). |
-| `obsidian_append_finding(title, content, folder, tags)` | Записать новую заметку (по умолчанию в `findings/`). Включается через `obsidian.allow_writes: true`. |
+| `obsidian_search(query, top_k)` | Semantic-ish search over the vault. Simple term-overlap scoring, with a bonus for hits in the heading/file name. Returns snippets, not whole files. |
+| `obsidian_read_note(path)` | Read a specific note found via search. Limit `max_note_chars` (8000 by default). |
+| `obsidian_append_finding(title, content, folder, tags)` | Write a new note (to `findings/` by default). Enabled with `obsidian.allow_writes: true`. |
 
-Подробнее по параметрам — в [tools.md](./tools.md).
-
----
-
-## Безопасность
-
-- Все три tool'а применяют redactor — даже если в заметке окажется секрет, он замаскируется перед отдачей Claude.
-- `path traversal` защита: нельзя через `path="../etc/passwd"` выйти за пределы vault.
-- Запись по умолчанию выключена. Если включена — запись только в подпапки vault, имя файла нормализуется (slug + дата).
-- Vault лежит локально и не покидает машину, пока Claude явно не вернёт его содержимое в ответе.
+Parameter details are in [tools.md](./tools.md).
 
 ---
 
-## Развёртывание vault
+## Security
 
-Два сценария:
-
-**Локальный vault на машине SRE.** Claude Desktop + MCP-сервер на ноутбуке. Vault — обычная папка Obsidian. Когда команда обновляет заметки, Obsidian Sync / git / iCloud Drive раскатывают изменения. Index в MCP обновляется по `mtime` — изменили файл → следующий поиск увидит свежую версию.
-
-**Общий vault на сервере.** Vault лежит на shared-сервере (git-репозиторий с auto-pull). Все SRE используют один и тот же набор runbooks. Изменения через PR в git. MCP-сервер живёт там же, обновляется по cron `git pull`.
-
-Второй вариант сильнее в команде из 5+ человек — централизованное знание. Первый — для индивидуальной работы.
+- All three tools apply the redactor — even if a note contains a secret, it is masked before being returned to the agent.
+- `path traversal` protection: you cannot escape the vault with `path="../etc/passwd"`.
+- Writing is disabled by default. If enabled, writes go only to vault subfolders, and the file name is normalized (slug + date).
+- The vault is stored locally and does not leave the machine unless the agent explicitly returns its contents in a response.
 
 ---
 
-## Маленькое правило
+## Vault deployment
 
-«Если ты разобрал инцидент и тебе пришлось что-то выяснять руками — это знак, что нужна заметка в vault». Через год vault — главный SRE-актив команды, и Claude становится тем сильнее, чем больше в нём накоплено.
+Two scenarios:
 
-Практические примеры использования Obsidian в инцидентах — см. [examples.md](./examples.md).
+**A local vault on the SRE's machine.** Claude Desktop + the MCP server on a laptop. The vault is a regular Obsidian folder. When the team updates notes, Obsidian Sync / git / iCloud Drive roll out the changes. The MCP index refreshes by `mtime` — change a file and the next search sees the fresh version.
+
+**A shared vault on a server.** The vault lives on a shared server (a git repository with auto-pull). All SREs use the same set of runbooks. Changes go through PRs in git. The MCP server runs there too and is updated by a `git pull` cron.
+
+The second option is stronger in a team of 5+ people — centralized knowledge. The first is for individual work.
+
+---
+
+## A small rule
+
+"If you investigated an incident and had to figure something out by hand, that is a sign a note is needed in the vault." In a year the vault becomes the team's main SRE asset, and the agent becomes stronger the more has accumulated in it.
+
+Practical examples of using Obsidian in incidents — see [examples.md](./examples.md).

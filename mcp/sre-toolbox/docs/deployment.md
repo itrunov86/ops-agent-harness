@@ -1,30 +1,32 @@
-# Развёртывание и эксплуатация
+**English** · [Русский](ru/deployment.md)
 
-← [Обратно в README](../README.md)
+# Deployment and operations
+
+← [Back to README](../README.md)
 
 ---
 
-## Зависимости
+## Dependencies
 
 ```bash
 pip install -r requirements.txt
-# опционально для DLP более высокого уровня:
+# optional, for higher-level DLP:
 pip install presidio-analyzer presidio-anonymizer
 ```
 
 ---
 
-## Конфигурация
+## Configuration
 
-Все параметры подключения (URL'ы, токены, лимиты, правила редактуры, allowlist) задаются в `config.yaml`. Шаблон — в `config.example.yaml`.
+All connection parameters (URLs, tokens, limits, redaction rules, allowlist) are set in `config.yaml`. The template is `config.example.yaml`.
 
 ```bash
 cp config.example.yaml config.yaml
-# отредактируйте URL VM Select, VictoriaLogs, Alertmanager и (опционально) Obsidian
-# секреты подставляются из env через синтаксис ${VAR}
+# edit the URLs of VM Select, VictoriaLogs, Alertmanager and (optionally) Obsidian
+# secrets are substituted from env via the ${VAR} syntax
 ```
 
-Минимальные переменные окружения для production:
+Minimal environment variables for production:
 
 ```bash
 VM_BEARER_TOKEN=...
@@ -35,7 +37,7 @@ MCP_CONFIG=/etc/mcp/config.yaml
 
 ---
 
-## Запуск как systemd-сервис
+## Running as a systemd service
 
 ```ini
 # /etc/systemd/system/sre-mcp.service
@@ -66,21 +68,21 @@ WantedBy=multi-user.target
 
 ---
 
-## Регистрация в Claude Desktop
+## Registering in Claude Desktop
 
-`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) или соответствующий путь на Linux/Windows:
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or the corresponding path on Linux/Windows:
 
 ```json
 {
   "mcpServers": {
     "sre-toolbox": {
-      "command": "/абсолютный/путь/к/.venv/bin/python",
-      "args": ["/абсолютный/путь/к/server.py"],
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["/absolute/path/to/server.py"],
       "env": {
         "AM_BEARER_TOKEN": "...",
         "VM_BEARER_TOKEN": "...",
         "VL_BEARER_TOKEN": "...",
-        "MCP_CONFIG": "/абсолютный/путь/к/config.yaml"
+        "MCP_CONFIG": "/absolute/path/to/config.yaml"
       }
     },
     "victoriametrics": {
@@ -91,7 +93,7 @@ WantedBy=multi-user.target
 }
 ```
 
-Если MCP-сервер живёт на отдельном хосте — `command` указывает на `ssh`:
+If the MCP server lives on a separate host, `command` points to `ssh`:
 
 ```json
 {
@@ -105,51 +107,51 @@ WantedBy=multi-user.target
 }
 ```
 
-Перезапустите Claude Desktop. В списке tools появятся все `am_*`, `vm_*`, `vl_*`, `obsidian_*` функции.
+Restart Claude Desktop. All the `am_*`, `vm_*`, `vl_*`, `obsidian_*` functions will appear in the tool list.
 
 ---
 
-## Регистрация в Claude Code
+## Registering in Claude Code
 
 ```bash
-claude mcp add --scope user sre-toolbox -- /абсолютный/путь/к/.venv/bin/python /абсолютный/путь/к/server.py
+claude mcp add --scope user sre-toolbox -- /absolute/path/to/.venv/bin/python /absolute/path/to/server.py
 ```
 
-Или редактируется `.mcp.json` в корне проекта (пример — `.mcp.example.json`). Регистрация в Codex — см. [install.md](./install.md#8-регистрация-в-codex).
+Or edit `.mcp.json` in the project root (example: `.mcp.example.json`). Registering in Codex — see [install.md](./install.md#8-register-in-codex).
 
 ---
 
-## SLO для самого MCP-сервера
+## SLOs for the MCP server itself
 
-- Доступность tools: 99.5%.
-- Latency `am_active_alerts`: p95 < 500 мс.
-- Latency `vl_query`: p95 < 3 с (с режимом `patterns`).
-- Latency `vm_query_range`: p95 < 1 с.
-- Latency `obsidian_search`: p95 < 100 мс (in-memory индекс).
-
----
-
-## Логирование сервера
-
-**Важно**: при stdio-транспорте `print()` в stdout ломает протокол. Все логи — только в stderr или в файл. Структурированный JSON-формат, чтобы дальше шло в VictoriaLogs как обычный сервис.
-
-В нашей реализации логи идут в stderr через стандартный `logging` с уровнем из `server.log_level`.
+- Tool availability: 99.5%.
+- `am_active_alerts` latency: p95 < 500 ms.
+- `vl_query` latency: p95 < 3 s (with `patterns` mode).
+- `vm_query_range` latency: p95 < 1 s.
+- `obsidian_search` latency: p95 < 100 ms (in-memory index).
 
 ---
 
-## Обновление и rollout
+## Server logging
 
-- Канарейка: один SRE использует новую версию MCP-сервера день, остальные — стабильную.
-- Версионирование tools: добавление tool — minor, изменение сигнатуры существующего — major (нужно перезагружать клиентов).
-- Rollback за минуту: systemd revert.
+**Important**: with the stdio transport, `print()` to stdout breaks the protocol. All logs go only to stderr or to a file. Use a structured JSON format so they can flow on to VictoriaLogs like any other service.
+
+In our implementation logs go to stderr through the standard `logging` module, with the level taken from `server.log_level`.
 
 ---
 
-## Безопасность в эксплуатации
+## Updates and rollout
 
-- Сервисные аккаунты к VictoriaMetrics, VictoriaLogs и Alertmanager — read-only с минимальным scope.
-- Регулярная ротация токенов (раз в 90 дней).
-- Аудит `mcp_redaction_hits_total > 0` — каждое срабатывание разбирается ИБ.
-- Раз в квартал — внутренний red team тест: «попробуйте через Claude выкачать секрет / код / customer-данные».
+- Canary: one SRE uses the new version of the MCP server for a day, everyone else stays on the stable one.
+- Tool versioning: adding a tool is minor, changing the signature of an existing one is major (clients need to be restarted).
+- One-minute rollback: systemd revert.
 
-Полные требования к ИБ-апруву — в [security.md](./security.md).
+---
+
+## Operational security
+
+- Service accounts for VictoriaMetrics, VictoriaLogs and Alertmanager are read-only with minimal scope.
+- Regular token rotation (every 90 days).
+- Audit `mcp_redaction_hits_total > 0` — every hit is reviewed by the security team.
+- Once a quarter, an internal red team test: "try to exfiltrate a secret / code / customer data through Claude".
+
+Full requirements for security approval are in [security.md](./security.md).

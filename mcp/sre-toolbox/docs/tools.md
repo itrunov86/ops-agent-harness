@@ -1,76 +1,78 @@
-# Tools MCP-сервера
+**English** · [Русский](ru/tools.md)
 
-← [Обратно в README](../README.md)
+# MCP server tools
 
-Справочник по всем tools, которые сервер предоставляет Claude. Каждый описан с точки зрения: что делает, какие аргументы, какой ответ, какие меры безопасности применяются.
+← [Back to README](../README.md)
+
+A reference of all tools the server provides to the agent (Claude Code or Codex). Each is described in terms of what it does, its arguments, its response, and the security measures applied.
 
 ---
 
-## Сводная таблица
+## Summary table
 
-| Категория | Tool | Назначение |
+| Category | Tool | Purpose |
 |-----------|------|-----------|
-| Алерты | `am_active_alerts` | Активные алерты из Alertmanager |
-| Алерты | `am_silences` | Активные silence-ы |
-| Метрики | `vm_query` | Instant PromQL |
-| Метрики | `vm_query_range` | Range PromQL (агрегаты по умолчанию) |
-| Метрики | `vm_label_values` | Discovery значений лейбла |
-| Логи | `vl_query` | LogsQL c режимом `patterns` |
-| Логи | `vl_streams` | Список потоков |
-| Knowledge base | `kb_search` | Поиск по базе знаний через `kb.py` |
-| Knowledge base | `kb_list` | Каталог базы знаний с фильтрами |
-| Knowledge base | `obsidian_search` | Поиск по vault |
-| Knowledge base | `obsidian_read_note` | Чтение конкретной заметки |
-| Knowledge base | `obsidian_append_finding` | Запись новой заметки |
-| Jira | `jira_get_issue` | Получить задачу по ключу |
-| Jira | `jira_search` | Поиск задач по JQL |
-| Jira | `jira_create_issue` | Создать задачу (под `allow_writes`) |
-| Jira | `jira_update_issue` | Обновить поля задачи |
-| Jira | `jira_transition_issue` | Сменить статус |
-| Jira | `jira_add_comment` | Добавить комментарий |
-| Jira | `jira_list_projects` | Список проектов |
-| Jira | `jira_list_boards` | Список Agile-досок |
-| Jira | `jira_list_sprints` | Список спринтов |
-| Jira | `jira_sprint_issues` | Задачи спринта |
-| Confluence | `confluence_get_page` | Страница по id или (space, title) |
-| Confluence | `confluence_search` | CQL-поиск |
-| Confluence | `confluence_get_page_children` | Дочерние страницы |
-| Confluence | `confluence_get_bookmark` | Страница из закладки в конфиге |
+| Alerts | `am_active_alerts` | Active alerts from Alertmanager |
+| Alerts | `am_silences` | Active silences |
+| Metrics | `vm_query` | Instant PromQL |
+| Metrics | `vm_query_range` | Range PromQL (aggregates by default) |
+| Metrics | `vm_label_values` | Label value discovery |
+| Logs | `vl_query` | LogsQL with `patterns` mode |
+| Logs | `vl_streams` | List of streams |
+| Knowledge base | `kb_search` | Knowledge base search via `kb.py` |
+| Knowledge base | `kb_list` | Knowledge base catalog with filters |
+| Knowledge base | `obsidian_search` | Vault search |
+| Knowledge base | `obsidian_read_note` | Read a specific note |
+| Knowledge base | `obsidian_append_finding` | Write a new note |
+| Jira | `jira_get_issue` | Get an issue by key |
+| Jira | `jira_search` | Search issues by JQL |
+| Jira | `jira_create_issue` | Create an issue (under `allow_writes`) |
+| Jira | `jira_update_issue` | Update issue fields |
+| Jira | `jira_transition_issue` | Change status |
+| Jira | `jira_add_comment` | Add a comment |
+| Jira | `jira_list_projects` | List projects |
+| Jira | `jira_list_boards` | List Agile boards |
+| Jira | `jira_list_sprints` | List sprints |
+| Jira | `jira_sprint_issues` | Sprint issues |
+| Confluence | `confluence_get_page` | Page by id or (space, title) |
+| Confluence | `confluence_search` | CQL search |
+| Confluence | `confluence_get_page_children` | Child pages |
+| Confluence | `confluence_get_bookmark` | Page from a bookmark in the config |
 
 ---
 
-## Алерты (Alertmanager)
+## Alerts (Alertmanager)
 
 ### `am_active_alerts`
 
-Возвращает активные алерты из Alertmanager (`/api/v2/alerts`).
+Returns active alerts from Alertmanager (`/api/v2/alerts`).
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `severity` | string? | Фильтр: `critical`, `warning`, `info` |
-| `service` | string? | Фильтр по label `service` (или `job`) |
-| `limit` | int | По умолчанию 50, максимум 200 |
-| `instance` | string? | Alertmanager из `alertmanager.instances` (имя или alias); по умолчанию `default_instance` |
+| `severity` | string? | Filter: `critical`, `warning`, `info` |
+| `service` | string? | Filter by the `service` (or `job`) label |
+| `limit` | int | 50 by default, max 200 |
+| `instance` | string? | Alertmanager from `alertmanager.instances` (name or alias); defaults to `default_instance` |
 
-Несколько Alertmanager задаются в `alertmanager.instances`; общие `verify_ssl`, `timeout_seconds`, `auth` — на верхнем уровне, инстанс их переопределяет. Старый формат с одним `url` работает как инстанс `default`. Неизвестное имя возвращает список доступных, URL параметром не принимается.
+Multiple Alertmanagers are defined in `alertmanager.instances`; the shared `verify_ssl`, `timeout_seconds`, `auth` live at the top level, and an instance overrides them. The old single-`url` format works as the `default` instance. An unknown name returns the list of available ones; a URL is not accepted as a parameter.
 
-**Ответ** — `instance` и компактный JSON: `name`, `severity`, `service`, `started_at`, `summary`, `runbook`. Никаких полных лейблов, generatorURL, fingerprint и прочего шума.
+**Response** — `instance` and compact JSON: `name`, `severity`, `service`, `started_at`, `summary`, `runbook`. No full labels, generatorURL, fingerprint or other noise.
 
 ### `am_silences`
 
-Активные silence-ы в Alertmanager (`/api/v2/silences`). Полезно, чтобы Claude видел, что заглушено в данный момент и почему.
+Active silences in Alertmanager (`/api/v2/silences`). Useful so the agent can see what is currently silenced and why.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `active_only` | bool | По умолчанию `true` — только активные |
-| `instance` | string? | Как в `am_active_alerts` |
+| `active_only` | bool | `true` by default — active only |
+| `instance` | string? | Same as in `am_active_alerts` |
 
 ---
 
-## Отдельный MCP-сервер `victoriametrics`
+## Separate `victoriametrics` MCP server
 
-Если у вас развёрнут отдельный HTTP-сервер VictoriaMetrics MCP, для агентских
-запросов метрик приоритетным источником становится он, подключённый в `.mcp.json` проекта (пример — [`.mcp.example.json`](../.mcp.example.json)):
+If you have a separate VictoriaMetrics MCP HTTP server deployed, it becomes the
+priority source for agent metric queries, connected in the project's `.mcp.json` (example — [`.mcp.example.json`](../.mcp.example.json)):
 
 ```json
 "victoriametrics": {
@@ -79,58 +81,58 @@
 }
 ```
 
-Это самостоятельный сервер. Его tools вызываются как
+This is a standalone server. Its tools are called as
 `mcp__victoriametrics__query`, `mcp__victoriametrics__query_range`,
-`mcp__victoriametrics__label_values` и `mcp__victoriametrics__series`.
-Не путай их с локальными `vm_query`, `vm_query_range`, `vm_label_values` из
-`sre-toolbox`: последние используют `config.yaml` и предназначены для
-fallback/совместимости.
+`mcp__victoriametrics__label_values` and `mcp__victoriametrics__series`.
+Do not confuse them with the local `vm_query`, `vm_query_range`, `vm_label_values` from
+`sre-toolbox`: the latter use `config.yaml` and are meant for
+fallback/compatibility.
 
-`mcp__victoriametrics__query` принимает `query` и опциональные `time`, `step`,
-`timeout`, `nocache`. `mcp__victoriametrics__query_range` принимает `query`,
-`start`, `end`, `step`, `timeout`, `nocache`. В отличие от локального
-`vm_query_range`, отдельный MCP возвращает сырые точки `[timestamp, value]` и
-не имеет `summarize`; используй узкое окно, разумный `step` и агрегирующий
-PromQL/MetricsQL для длинной истории.
+`mcp__victoriametrics__query` accepts `query` and optional `time`, `step`,
+`timeout`, `nocache`. `mcp__victoriametrics__query_range` accepts `query`,
+`start`, `end`, `step`, `timeout`, `nocache`. Unlike the local
+`vm_query_range`, the separate MCP returns raw `[timestamp, value]` points and
+has no `summarize`; use a narrow window, a reasonable `step` and aggregating
+PromQL/MetricsQL for long history.
 
-Для проверки флапа удобно запрашивать `max_over_time((<expr>)[1h:1m])` с
-`step=1h`. Для discovery используй `label_values` и `series`, если результат
-пустой: отдельный MCP может смотреть в другой VM-инстанс или tenant, а
-неверный label/источник даст `result: []` без явной ошибки. Не делай вывод
-«метрики отсутствуют», пока не проверил фактические labels и границу retention.
+To check flapping, it is convenient to query `max_over_time((<expr>)[1h:1m])` with
+`step=1h`. For discovery, use `label_values` and `series` if the result is
+empty: the separate MCP may look at a different VM instance or tenant, and
+a wrong label/source gives `result: []` without an explicit error. Do not conclude
+"metrics are missing" until you have checked the actual labels and the retention boundary.
 
-Если отдельный MCP недоступен, зафиксируй ошибку и используй локальный
-`sre-toolbox.vm_query`/`vm_query_range` как fallback. Для справки по семантике
-VictoriaMetrics доступен `mcp__victoriametrics__documentation`.
+If the separate MCP is unavailable, record the error and use the local
+`sre-toolbox.vm_query`/`vm_query_range` as a fallback. For reference on
+VictoriaMetrics semantics, `mcp__victoriametrics__documentation` is available.
 
 ## VictoriaMetrics Select
 
-VictoriaMetrics Select имеет Prometheus-совместимый API, поэтому используются стандартные эндпоинты `/api/v1/query`, `/api/v1/query_range`, `/api/v1/label/<name>/values`.
+VictoriaMetrics Select has a Prometheus-compatible API, so the standard endpoints `/api/v1/query`, `/api/v1/query_range`, `/api/v1/label/<name>/values` are used.
 
-Этот раздел описывает локальные `sre-toolbox` tools. Для нового расследования
-сначала используй отдельный MCP из раздела выше.
+This section describes the local `sre-toolbox` tools. For a new investigation,
+use the separate MCP from the section above first.
 
-### Маршрут и тенанты
+### Route and tenants
 
-Tools ходят только в `victoriametrics.url`. Для кластерной VM удобно multitenant-чтение
-(`/select/multitenant/prometheus`): видны все тенанты сразу, кластер выбирается label
-`vm_account_id` (например 100 — prod, 200 — staging; список —
-`vm_label_values("vm_account_id")`). URL и credentials параметрами tools не принимаются.
+Tools go only to `victoriametrics.url`. For a cluster VM, multitenant reads are convenient
+(`/select/multitenant/prometheus`): all tenants are visible at once, and the cluster is selected by the
+`vm_account_id` label (for example 100 — prod, 200 — staging; list —
+`vm_label_values("vm_account_id")`). URLs and credentials are not accepted as tool parameters.
 
-Общий лимит запроса и ответа задаётся в `victoriametrics.limits`: `request_timeout_seconds`, `max_timeout_seconds`, `max_range_seconds`, `min_step_seconds`, `max_step_seconds`, `max_points_requested`, `max_points_per_series` и `max_response_bytes`.
+The overall request and response limits are set in `victoriametrics.limits`: `request_timeout_seconds`, `max_timeout_seconds`, `max_range_seconds`, `min_step_seconds`, `max_step_seconds`, `max_points_requested`, `max_points_per_series` and `max_response_bytes`.
 
 ### `vm_query`
 
-Instant PromQL-запрос. Возвращает текущее значение метрики.
+Instant PromQL query. Returns the current value of a metric.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `promql` | string | PromQL-выражение |
-| `time_` | string? | RFC3339 timestamp, по умолчанию now |
+| `promql` | string | PromQL expression |
+| `time_` | string? | RFC3339 timestamp, defaults to now |
 
-**Меры безопасности**: проверяется allowlist разрешённых сервисов/неймспейсов. Ответ ограничен `max_series_returned` из конфига (по умолчанию 30 рядов).
+**Security measures**: an allowlist of permitted services/namespaces is checked. The response is limited by `max_series_returned` from the config (30 series by default).
 
-Пример instant-запроса по prod:
+Example of an instant query against prod:
 
 ```json
 {
@@ -140,18 +142,18 @@ Instant PromQL-запрос. Возвращает текущее значени�
 
 ### `vm_query_range`
 
-Range PromQL-запрос. По умолчанию возвращает **агрегаты** (min/max/avg/p50/p95/p99), а не сырые точки.
+Range PromQL query. By default returns **aggregates** (min/max/avg/p50/p95/p99), not raw points.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `promql` | string | PromQL-выражение |
-| `start`, `end` | string | RFC3339 или Prometheus-style |
-| `step` | string | По умолчанию `60s` |
-| `summarize` | bool | Если `true` (по умолчанию) — агрегаты, не точки |
+| `promql` | string | PromQL expression |
+| `start`, `end` | string | RFC3339 or Prometheus-style |
+| `step` | string | `60s` by default |
+| `summarize` | bool | If `true` (default) — aggregates, not points |
 
-**Экономия**: `summarize=true` сжимает ответ в 50-200 раз. Если действительно нужны точки — `summarize=false`, тогда сервер всё равно прорежает их до `max_points_per_series`.
+**Savings**: `summarize=true` compresses the response 50-200 times. If you really need points, use `summarize=false`; the server still thins them out to `max_points_per_series`.
 
-Пример range-запроса:
+Example of a range query:
 
 ```json
 {
@@ -164,29 +166,29 @@ Range PromQL-запрос. По умолчанию возвращает **агр
 
 ### `vm_label_values`
 
-Список значений лейбла из `/api/v1/label/<name>/values`. Не возвращает данные, только идентификаторы.
+List of label values from `/api/v1/label/<name>/values`. Returns no data, only identifiers.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `label` | string | Имя лейбла. Часто `__name__` (имена метрик), `job`, `service` |
-| `match` | string? | Селектор `{service="x"}` для фильтрации |
+| `label` | string | Label name. Often `__name__` (metric names), `job`, `service` |
+| `match` | string? | A `{service="x"}` selector for filtering |
 
-Полезно для discovery: «какие метрики есть у сервиса X», «какие сервисы вообще пишут метрики».
+Useful for discovery: "what metrics does service X have", "which services write metrics at all".
 
 ---
 
 ## VictoriaLogs
 
-VictoriaLogs — отдельный продукт VictoriaMetrics для логов с собственным языком запросов LogsQL. Основной эндпоинт — `/select/logsql/query` (стрим NDJSON).
+VictoriaLogs is a separate VictoriaMetrics product for logs with its own query language, LogsQL. The main endpoint is `/select/logsql/query` (an NDJSON stream).
 
-### Тенанты
+### Tenants
 
-Tools ходят только в `victorialogs.url`. Тенант выбирается параметром `tenant`: имя или AccountID из
-server-side карты `victorialogs.tenants`, по умолчанию `victorialogs.default_tenant`. MCP ставит
-заголовки `AccountID` и `ProjectID: 0`, поэтому учётке нужен доступ ко всем тенантам (например
-отдельный read-only пользователь vmauth). Неизвестный тенант возвращает список доступных; без карты заголовки не ставятся.
+Tools go only to `victorialogs.url`. The tenant is selected with the `tenant` parameter: a name or AccountID from
+the server-side `victorialogs.tenants` map, defaulting to `victorialogs.default_tenant`. The MCP sets the
+`AccountID` and `ProjectID: 0` headers, so the account needs access to all tenants (for example
+a dedicated read-only vmauth user). An unknown tenant returns the list of available ones; without a map, no headers are set.
 
-Пример запроса логов из тенанта payments-prod:
+Example of a log query against the payments-prod tenant:
 
 ```json
 {
@@ -199,171 +201,171 @@ server-side карты `victorialogs.tenants`, по умолчанию `victoria
 }
 ```
 
-Лимиты задаются в `victorialogs.limits`: `request_timeout_seconds`, `max_timeout_seconds`, `max_query_window_hours`, `max_lines_returned`, `max_streams_returned`, `max_input_bytes` и `max_response_bytes`.
+Limits are set in `victorialogs.limits`: `request_timeout_seconds`, `max_timeout_seconds`, `max_query_window_hours`, `max_lines_returned`, `max_streams_returned`, `max_input_bytes` and `max_response_bytes`.
 
 ### `vl_query`
 
-LogsQL-запрос к VictoriaLogs.
+LogsQL query to VictoriaLogs.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `logsql` | string | LogsQL-выражение, например `_stream:{service="api"} error` |
-| `start`, `end` | string | RFC3339, окно запроса |
-| `limit` | int? | максимум строк (потолок `max_lines_returned`) |
-| `mode` | enum? | `patterns` (по умолчанию — кластеризация) или `lines` (сырьё) |
-| `tenant` | string? | Имя или AccountID из `victorialogs.tenants`; по умолчанию `default_tenant` |
+| `logsql` | string | LogsQL expression, e.g. `_stream:{service="api"} error` |
+| `start`, `end` | string | RFC3339, query window |
+| `limit` | int? | max lines (capped at `max_lines_returned`) |
+| `mode` | enum? | `patterns` (default — clustering) or `lines` (raw) |
+| `tenant` | string? | Name or AccountID from `victorialogs.tenants`; defaults to `default_tenant` |
 
-**Ключевая мера экономии — режим `patterns`**: сервер нормализует строки (числа → `<N>`, hex → `<HEX>`, длинные литералы → `<STR>`), группирует и возвращает топ-N шаблонов с счётчиками. Вместо «4521 похожих ERROR-строк» получается одна строка с `count=4521`.
+**The key savings measure is `patterns` mode**: the server normalizes lines (numbers → `<N>`, hex → `<HEX>`, long literals → `<STR>`), groups them and returns the top N templates with counters. Instead of "4521 similar ERROR lines" you get one line with `count=4521`.
 
-**Лимит окна**: запросы шире `max_query_window_hours` (по умолчанию 24ч) отклоняются — защита от случайной выкачки.
+**Window limit**: queries wider than `max_query_window_hours` (24h by default) are rejected — protection against accidental bulk export.
 
 ### `vl_streams`
 
-Список потоков (`_stream`) в VictoriaLogs через `/select/logsql/streams`. Полезно, чтобы понять, какие сервисы доступны.
+List of streams (`_stream`) in VictoriaLogs via `/select/logsql/streams`. Useful for understanding which services are available.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `query` | string | LogsQL-фильтр, по умолчанию `*` |
-| `limit` | int | Максимум потоков в ответе |
-| `tenant` | string? | Имя или AccountID из `victorialogs.tenants`; по умолчанию `default_tenant` |
+| `query` | string | LogsQL filter, `*` by default |
+| `limit` | int | Max streams in the response |
+| `tenant` | string? | Name or AccountID from `victorialogs.tenants`; defaults to `default_tenant` |
 
 ---
 
-## База знаний (`kb.py`)
+## Knowledge base (`kb.py`)
 
-`kb_search` и `kb_list` загружают `kb.py` из agent-harness и возвращают разделы с диапазонами строк, а не документы
-целиком. Путь к `kb.py` — `obsidian.kb_tool` (по умолчанию `../../tools/kb.py` относительно `mcp/sre-toolbox`),
-корень базы — `paths.kb_root` из конфига harness. Заметки `obsidian.vault_path` добавляются, если vault — отдельная
-папка (`include_obsidian`).
+`kb_search` and `kb_list` load `kb.py` from agent-harness and return sections with line ranges, not whole
+documents. The path to `kb.py` is `obsidian.kb_tool` (by default `../../tools/kb.py` relative to `mcp/sre-toolbox`),
+and the knowledge base root is `paths.kb_root` from the harness config. Notes from `obsidian.vault_path` are added if the vault is a separate
+folder (`include_obsidian`).
 
 ### `kb_search`
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `query` | string | Симптом, сервис, алерт, ключ задачи (`OPS-1234`) |
-| `limit` | int | Сколько документов вернуть (по умолчанию 6, потолок 15) |
-| `service`, `ticket`, `doc_type` | string? | Фильтры по метаданным документа |
-| `include_obsidian` | bool | Искать и в заметках vault (по умолчанию `true`) |
+| `query` | string | Symptom, service, alert, issue key (`OPS-1234`) |
+| `limit` | int | How many documents to return (6 by default, capped at 15) |
+| `service`, `ticket`, `doc_type` | string? | Filters on document metadata |
+| `include_obsidian` | bool | Also search vault notes (`true` by default) |
 
 ### `kb_list`
 
-Каталог (новые сверху) с фильтрами `service`, `ticket`, `doc_type`, `since` (YYYY-MM-DD), `limit` (потолок 100).
+Catalog (newest first) with filters `service`, `ticket`, `doc_type`, `since` (YYYY-MM-DD), `limit` (capped at 100).
 
 ## Obsidian vault
 
-Локальный knowledge base с runbooks, постмортемами и описаниями сервисов. Самый важный приём экономии токенов — см. [obsidian.md](./obsidian.md) для подробностей и шаблонов.
+A local knowledge base with runbooks, postmortems and service descriptions. The most important token-saving technique — see [obsidian.md](./obsidian.md) for details and templates.
 
 ### `obsidian_search`
 
-Поиск по vault. Простой term-overlap скоринг + бонус за совпадение в заголовке.
+Vault search. Simple term-overlap scoring + a bonus for a match in the heading.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `query` | string | Ключевые слова: имя алерта, сервис, симптом |
-| `top_k` | int | Сколько лучших совпадений вернуть (по умолчанию 5, потолок 20) |
+| `query` | string | Keywords: alert name, service, symptom |
+| `top_k` | int | How many best matches to return (5 by default, capped at 20) |
 
-Возвращает: `{count, vault_size, results: [{path, title, score, snippet}]}`. Snippets ограничены `snippet_chars` (400 символов по умолчанию).
+Returns: `{count, vault_size, results: [{path, title, score, snippet}]}`. Snippets are limited by `snippet_chars` (400 characters by default).
 
 ### `obsidian_read_note`
 
-Прочитать конкретную заметку, найденную через search.
+Read a specific note found via search.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `path` | string | Относительный путь от корня vault |
+| `path` | string | Path relative to the vault root |
 
-Защита от path traversal. Лимит `max_note_chars` (по умолчанию 8000).
+Path traversal protection. Limit `max_note_chars` (8000 by default).
 
 ### `obsidian_append_finding`
 
-Записать новую заметку (накопительная память). По умолчанию выключено — включается через `obsidian.allow_writes: true`.
+Write a new note (cumulative memory). Disabled by default — enabled with `obsidian.allow_writes: true`.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `title` | string | Заголовок — H1 и часть имени файла |
-| `content` | string | Тело заметки в markdown |
-| `folder` | string | Подпапка vault, по умолчанию `findings` |
-| `tags` | list[string]? | Теги для frontmatter |
+| `title` | string | Title — the H1 and part of the file name |
+| `content` | string | Note body in markdown |
+| `folder` | string | Vault subfolder, `findings` by default |
+| `tags` | list[string]? | Tags for the frontmatter |
 
 ---
 
 ## Jira (Server / Data Center)
 
-Личный PAT передаётся в `jira.auth.bearer_token` (заголовок `Authorization: Bearer ...`).
-PAT выдаётся в Jira: `Profile` → `Personal Access Tokens` → `Create token`.
+A personal PAT is passed in `jira.auth.bearer_token` (the `Authorization: Bearer ...` header).
+The PAT is issued in Jira: `Profile` → `Personal Access Tokens` → `Create token`.
 
-По умолчанию модуль работает **только на чтение**. Запись (создание задач,
-обновление полей, transitions, комментарии) включается флагом
-`jira.allow_writes: true`. Дополнительно можно ограничить набор проектов
-через `jira.allow_projects`.
+By default the module is **read-only**. Writes (creating issues,
+updating fields, transitions, comments) are enabled with the
+`jira.allow_writes: true` flag. You can additionally restrict the set of projects
+with `jira.allow_projects`.
 
-Ответы максимально сжаты: длинные `description`/`comments` обрезаются до
-`limits.max_field_chars`, по умолчанию возвращается компактный набор полей
-из `limits.default_fields`.
+Responses are compressed as much as possible: long `description`/`comments` are truncated to
+`limits.max_field_chars`, and by default a compact set of fields
+from `limits.default_fields` is returned.
 
 ### `jira_get_issue`
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `key` | string | Ключ задачи, например `OPS-123` |
-| `fields` | list[string]? | Поля; по умолчанию — из конфига |
-| `with_comments` | bool | Подмешать N последних комментариев |
+| `key` | string | Issue key, e.g. `OPS-123` |
+| `fields` | list[string]? | Fields; defaults come from the config |
+| `with_comments` | bool | Include the N latest comments |
 
 ### `jira_search`
 
-JQL-поиск. Поддерживает `startAt` для пагинации.
+JQL search. Supports `startAt` for pagination.
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `jql` | string | JQL-выражение |
-| `fields` | list[string]? | Поля; по умолчанию — компактный набор |
-| `limit` | int | Потолок `limits.max_issues_returned` |
-| `start_at` | int | Offset для пагинации |
+| `jql` | string | JQL expression |
+| `fields` | list[string]? | Fields; a compact set by default |
+| `limit` | int | Capped at `limits.max_issues_returned` |
+| `start_at` | int | Offset for pagination |
 
 ### `jira_create_issue` / `jira_update_issue` / `jira_transition_issue` / `jira_add_comment`
 
-Все требуют `jira.allow_writes: true`. `jira_transition_issue` принимает имя
-транзишена (а не id) — нужный id ищется автоматически.
+All require `jira.allow_writes: true`. `jira_transition_issue` takes the transition
+name (not the id) — the required id is looked up automatically.
 
 ### `jira_list_projects` / `jira_list_boards` / `jira_list_sprints` / `jira_sprint_issues`
 
-Чтение через Agile API (`/rest/agile/1.0`). Удобно для «что у меня в спринте».
+Reads via the Agile API (`/rest/agile/1.0`). Handy for "what's in my sprint".
 
 ---
 
 ## Confluence (Server / Data Center)
 
-Аналогично Jira — `confluence.auth.bearer_token` (отдельный PAT). По
-умолчанию работает только на чтение.
+Same as Jira — `confluence.auth.bearer_token` (a separate PAT). Read-only
+by default.
 
-Тело страницы возвращается как plain text (storage XHTML конвертируется
-в текст без зависимостей) и обрезается до `limits.max_page_chars` —
-это сжимает квартальный план на 100K символов в 12K, экономия токенов.
+The page body is returned as plain text (storage XHTML is converted
+to text without dependencies) and truncated to `limits.max_page_chars` —
+this compresses a 100K-character quarterly plan to 12K, saving tokens.
 
 ### `confluence_get_page`
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `page_id` | string? | ID страницы |
-| `space` | string? | Space key (вместе с `title`) |
-| `title` | string? | Точное название страницы |
+| `page_id` | string? | Page ID |
+| `space` | string? | Space key (together with `title`) |
+| `title` | string? | Exact page title |
 
 ### `confluence_search`
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |----------|-----|----------|
-| `cql` | string | CQL-выражение |
-| `limit` | int | Потолок `limits.max_search_results` |
-| `include_body` | bool | Подмешивать ли тело страниц (дорого) |
+| `cql` | string | CQL expression |
+| `limit` | int | Capped at `limits.max_search_results` |
+| `include_body` | bool | Whether to include page bodies (expensive) |
 
 ### `confluence_get_page_children`
 
-Список child-страниц. Полезно: получить корневую страницу плана, потом
-пройтись по разделам.
+List of child pages. Useful: get the root page of a plan, then
+walk through its sections.
 
 ### `confluence_get_bookmark`
 
-Быстрый доступ к закреплённым страницам из `confluence.bookmarks` в конфиге:
+Quick access to pinned pages from `confluence.bookmarks` in the config:
 
 ```yaml
 confluence:
@@ -373,26 +375,26 @@ confluence:
       title: "Quarterly Plan Q3 2026"
 ```
 
-Тогда `confluence_get_bookmark("quarterly_plan")` сразу возвращает страницу.
+Then `confluence_get_bookmark("quarterly_plan")` returns the page right away.
 
 ---
 
-## Расширение собственными tools
+## Extending with your own tools
 
-В рабочей версии сервера легко добавить свои tools под вашу инфраструктуру:
+In a working version of the server it is easy to add your own tools for your infrastructure:
 
-- `get_recent_deploys` — последние N деплоев сервиса (из Argo CD / GitOps / собственного deploy-tracker).
-- `correlate_alert_with_deploys` — был ли деплой в окне ±30 минут до алерта.
-- `get_runbook` — runbook для конкретного алерта из Confluence / репозитория.
+- `get_recent_deploys` — the last N deploys of a service (from Argo CD / GitOps / your own deploy tracker).
+- `correlate_alert_with_deploys` — whether there was a deploy within ±30 minutes before the alert.
+- `get_runbook` — the runbook for a specific alert from Confluence / a repository.
 
-Шаблон добавления tool описан в [README](../README.md#расширение).
+The template for adding a tool is described in the [README](../README.md#extending).
 
 ---
 
-## Tools, которых сознательно НЕТ
+## Tools we deliberately do NOT have
 
-Эти tools могли бы быть полезны, но мы их не добавляем по соображениям безопасности и стоимости:
+These tools could be useful, but we do not add them for security and cost reasons:
 
-- `get_full_repo` — нет. Если нужен код, есть `search_code` с лимитом 200 строк фрагмента.
-- `restart_pod`, `scale_deployment` — нет в первой версии. Destructive actions добавляются только после периода обкатки и с обязательным human-in-the-loop.
-- `raw_query` к произвольным API — нет. Только конкретные tools с провалидированными параметрами.
+- `get_full_repo` — no. If you need code, there is `search_code` with a 200-line fragment limit.
+- `restart_pod`, `scale_deployment` — not in the first version. Destructive actions are added only after a trial period and with a mandatory human-in-the-loop.
+- `raw_query` to arbitrary APIs — no. Only specific tools with validated parameters.

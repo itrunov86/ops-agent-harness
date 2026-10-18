@@ -1,8 +1,10 @@
-# Отдельный MCP-сервер VictoriaMetrics
+**English** · [Русский](ru/victoriametrics-mcp.md)
 
-## Подключение
+# Separate VictoriaMetrics MCP server
 
-Если у вас есть отдельный HTTP-сервер VictoriaMetrics MCP, подключите его через `.mcp.json` проекта (пример — [`.mcp.example.json`](../.mcp.example.json)):
+## Connecting
+
+If you have a separate VictoriaMetrics MCP HTTP server, connect it through the project's `.mcp.json` (example — [`.mcp.example.json`](../.mcp.example.json)):
 
 ```json
 {
@@ -15,38 +17,38 @@
 }
 ```
 
-После перезапуска Claude Code/Claude Desktop инструменты сервера доступны с
-именами вида `mcp__victoriametrics__query_range`.
+After restarting Claude Code/Claude Desktop, the server's tools are available
+under names like `mcp__victoriametrics__query_range`.
 
-Это отдельный MCP-сервер VictoriaMetrics, а не `vm_query_range` из локального
-`sre-toolbox`. Локальные `vm_*` tools используют `config.yaml` и могут идти
-через настроенный endpoint или Grafana datasource proxy. Для получения самих
-метрик приоритет всегда у отдельного `victoriametrics` MCP; локальный
-`sre-toolbox.vm_*` — fallback, если отдельный сервер недоступен.
+This is a separate VictoriaMetrics MCP server, not `vm_query_range` from the local
+`sre-toolbox`. The local `vm_*` tools use `config.yaml` and can go
+through a configured endpoint or a Grafana datasource proxy. For fetching the
+metrics themselves, the separate `victoriametrics` MCP always takes priority; the local
+`sre-toolbox.vm_*` is a fallback if the separate server is unavailable.
 
-Не используй Grafana или произвольный HTTP/curl для получения метрик, если
-доступен MCP. Grafana можно использовать для дашбордов, alert rules и
-контекста источника.
+Do not use Grafana or arbitrary HTTP/curl to fetch metrics when
+the MCP is available. Grafana can be used for dashboards, alert rules and
+data source context.
 
-## Основные tools
+## Main tools
 
-| MCP tool | Назначение |
+| MCP tool | Purpose |
 |---|---|
-| `mcp__victoriametrics__query` | Instant PromQL/MetricsQL-запрос |
-| `mcp__victoriametrics__query_range` | Range-запрос за интервал |
-| `mcp__victoriametrics__label_values` | Значения заданного label |
-| `mcp__victoriametrics__series` | Discovery временных рядов по selector |
-| `mcp__victoriametrics__metrics` | Имена доступных метрик |
-| `mcp__victoriametrics__metrics_metadata` | Тип, help и unit метрики |
+| `mcp__victoriametrics__query` | Instant PromQL/MetricsQL query |
+| `mcp__victoriametrics__query_range` | Range query over an interval |
+| `mcp__victoriametrics__label_values` | Values of a given label |
+| `mcp__victoriametrics__series` | Time series discovery by selector |
+| `mcp__victoriametrics__metrics` | Names of available metrics |
+| `mcp__victoriametrics__metrics_metadata` | Metric type, help and unit |
 | `mcp__victoriametrics__rules` | Recording/alerting rules |
 | `mcp__victoriametrics__alerts` | Pending/firing alerts |
-| `mcp__victoriametrics__documentation` | Поиск официальной документации VictoriaMetrics |
+| `mcp__victoriametrics__documentation` | Search the official VictoriaMetrics documentation |
 
-`query` принимает `query`, опционально `time`, `step`, `timeout`, `nocache` и
-возвращает instant result. `query_range` принимает `query`, `start`, `end`,
-`step`, опционально `timeout` и `nocache`.
+`query` accepts `query`, optionally `time`, `step`, `timeout`, `nocache`, and
+returns an instant result. `query_range` accepts `query`, `start`, `end`,
+`step`, optionally `timeout` and `nocache`.
 
-Пример:
+Example:
 
 ```text
 mcp__victoriametrics__query_range(
@@ -58,37 +60,37 @@ mcp__victoriametrics__query_range(
 )
 ```
 
-## Правильный порядок работы
+## The right order of work
 
-1. Перед дорогим расследованием сначала проверь `obsidian_search` в
-   `sre-toolbox` — готовый runbook может уже содержать PromQL и контекст.
-2. Получив PromQL из алерта, правила или runbook, сначала выполни его через
-   `mcp__victoriametrics__query` или `mcp__victoriametrics__query_range`.
-3. Начни с узкого окна вокруг события. Для проверки длительности превышения
-   threshold используй шаг `1m` или фактический шаг данных.
-4. Для проверки flap/истории используй более широкое окно и агрегирующий
-   subquery, например `max_over_time((<expr>)[1h:1m])` с `step=1h`.
-5. В результате укажи источник, точное окно и timezone (обычно UTC), selector,
-   threshold, максимум и длительность превышения. Не смешивай данные этого
-   сервера с Grafana proxy без явной пометки.
+1. Before an expensive investigation, first check `obsidian_search` in
+   `sre-toolbox` — a ready runbook may already contain the PromQL and context.
+2. Once you have PromQL from an alert, rule or runbook, first run it through
+   `mcp__victoriametrics__query` or `mcp__victoriametrics__query_range`.
+3. Start with a narrow window around the event. To check how long the
+   threshold was exceeded, use a `1m` step or the actual data step.
+4. To check flapping/history, use a wider window and an aggregating
+   subquery, for example `max_over_time((<expr>)[1h:1m])` with `step=1h`.
+5. In the result, state the source, the exact window and timezone (usually UTC), selector,
+   threshold, maximum and duration of the breach. Do not mix data from this
+   server with the Grafana proxy without an explicit note.
 
-## Формат результата и экономия токенов
+## Result format and token savings
 
-`query_range` отдельного MCP возвращает стандартный Prometheus-ответ с сырыми
-точками вида `[unix_timestamp, value]`. У него нет параметра `summarize`, как у
-локального `sre-toolbox.vm_query_range`, поэтому:
+`query_range` of the separate MCP returns a standard Prometheus response with raw
+points of the form `[unix_timestamp, value]`. It has no `summarize` parameter like
+the local `sre-toolbox.vm_query_range`, so:
 
-- для обычного просмотра предпочитай агрегирующие PromQL/MetricsQL-выражения;
-- для длинного окна увеличивай `step`, но не пропускай короткие пики;
-- при необходимости сворачивай точки локально в min/max/avg/p95 и сохраняй
-  timestamp пика;
-- не передавай модели большой массив сырых точек без необходимости.
+- for regular viewing, prefer aggregating PromQL/MetricsQL expressions;
+- for a long window, increase `step`, but do not miss short spikes;
+- if needed, collapse points locally into min/max/avg/p95 and keep the
+  peak timestamp;
+- do not pass a large array of raw points to the model unless necessary.
 
-## Пустой результат — не доказательство отсутствия метрики
+## An empty result is not proof that a metric is missing
 
-Отдельный MCP может смотреть в другой VM-инстанс или tenant, чем источник
-алерта. `result: []`, `seriesFetched: 0` или пустой `query_range` сначала нужно
-проверить:
+The separate MCP may look at a different VM instance or tenant than the alert's
+source. `result: []`, `seriesFetched: 0` or an empty `query_range` must first be
+checked:
 
 ```text
 mcp__victoriametrics__label_values(
@@ -98,21 +100,21 @@ mcp__victoriametrics__label_values(
 )
 ```
 
-Если label называется иначе, проверь `exported_namespace`, `service`, `job`
-и другие labels через `label_values` или `series`. Только после discovery
-делай вывод: данных нет, label указан неверно или подключённый MCP смотрит не
-в тот источник.
+If the label has a different name, check `exported_namespace`, `service`, `job`
+and other labels via `label_values` or `series`. Only after discovery
+draw a conclusion: there is no data, the label is wrong, or the connected MCP is looking at
+the wrong source.
 
-Не выдумывай PromQL, labels, retention или глубину истории. Если сервер
-возвращает данные только начиная с более поздней даты, фиксируй фактическую
-границу retention.
+Do not invent PromQL, labels, retention or history depth. If the server
+returns data only from a later date onward, record the actual
+retention boundary.
 
-## Ограничения и безопасность
+## Limitations and security
 
-- URL datasource, tenant, credentials и токены не являются аргументами tools.
-- Все запросы к production должны быть read-only и максимально узкими.
-- Для вопросов о семантике VictoriaMetrics сначала используй
-  `mcp__victoriametrics__documentation`, а не догадки.
-- Если отдельный сервер недоступен, явно сообщи об этом и используй
-  `sre-toolbox.vm_query`/`vm_query_range` как fallback; не подменяй ошибку
-  нулевыми метриками.
+- Datasource URL, tenant, credentials and tokens are not tool arguments.
+- All queries to production must be read-only and as narrow as possible.
+- For questions about VictoriaMetrics semantics, use
+  `mcp__victoriametrics__documentation` first rather than guessing.
+- If the separate server is unavailable, say so explicitly and use
+  `sre-toolbox.vm_query`/`vm_query_range` as a fallback; do not replace the error
+  with zero metrics.

@@ -15,7 +15,8 @@ agent_session.py — журнал длинной задачи и хуки, ко�
 
 Активная задача: ключ Jira в имени git-ветки рабочей папки, иначе журнал, к которому привязан чат, иначе папка,
 зарегистрированная командой `start` (только если в её пути есть ключ). Чат привязывается, когда пользователь
-начинает сообщение с ключа или пишет «работаем по OPS-…», и когда агент заводит журнал (`start`) или пишет в него.
+начинает сообщение с ключа или пишет «работаем по OPS-…» / «working on OPS-…», и когда агент заводит журнал
+(`start`) или пишет в него.
 Хук никогда не падает и ничего не блокирует. Только стандартная библиотека.
 """
 
@@ -39,8 +40,12 @@ ACTIVE = STATE / "active-tasks.json"
 KEY_RE = CONFIG.ticket_re()
 SESSIONS = STATE / "session-tasks.json"
 _KEY = f"({CONFIG.ticket_group})"
-PROMPT_KEY_RE = re.compile(rf"^\W*{_KEY}\b|(?:работаем|продолжа\w*|переключ\w*)\s+(?:по|на|с)?\s*(?:задач\w*\s+)?{_KEY}\b",
-                           re.I)
+# Явное «работаем над задачей»: ключ в начале сообщения или фраза перед ключом (русская или английская).
+PROMPT_KEY_RE = re.compile(
+    rf"^\W*{_KEY}\b"
+    rf"|(?:работаем|продолжа\w*|переключ\w*)\s+(?:по|на|с)?\s*(?:задач\w*\s+)?{_KEY}\b"
+    rf"|\b(?:working\s+on|work\s+on|continu\w*(?:\s+with)?|resum\w*|switch\w*\s+to)\s+(?:the\s+)?(?:task\s+|ticket\s+)?{_KEY}\b",
+    re.I)
 START_RE = re.compile(rf"(?:^|[;&|\n(])\s*(?:cd\s+\S+\s*&&\s*)?(?:python3?\s+(?:-I\s+)?)?\S*agent_session\.py\s+start\s+{_KEY}",
                       re.I)
 HANDOFF_PATH_RE = re.compile(rf"tasks/{_KEY}[^/\"\s]*/handoff\.md", re.I)

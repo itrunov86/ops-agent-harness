@@ -1,56 +1,60 @@
-# Безопасность
+**English** · [Русский](ru/security.md)
 
-## Модель
+# Security
 
-| Что | По умолчанию |
+## Model
+
+| What | Default |
 |---|---|
-| Чтение облака, кластеров, секрет-менеджера, Argo CD, CI, трекера, вики, чата | свободно |
-| Запись во всё перечисленное | только после явного «да» на одно конкретное действие |
-| Правки в рабочих репозиториях | на ветке задачи, коммит — после проверки; push и MR — по просьбе |
-| Правки в базе знаний | свободно, коммит прямо в `main`, автокоммит в конце ответа |
-| Создание задачи в трекере, если ключа нет | постоянное разрешение на одну задачу (правило в AGENTS.md) |
+| Reading the cloud, clusters, secrets manager, Argo CD, CI, tracker, wiki, chat | allowed |
+| Writing to any of the above | only after an explicit "yes" for one specific action |
+| Edits in work repositories | on the task branch; commit after verification; push and MR on request |
+| Edits in the knowledge base | allowed; committed directly to `main`, autocommit at the end of each response |
+| Creating a tracker issue when there is no key | standing permission for one issue (rule in AGENTS.md) |
 
-Перед просьбой о подтверждении агент обязан назвать: что изменится, на что повлияет, как откатить, как проверить.
-«Да» действует на одно действие; следующее он спросит снова. Разрешительный режим песочницы — не подтверждение.
+Before asking for confirmation the agent must state: what will change, what it affects, how to roll back, how to
+verify. A "yes" covers one action; the agent asks again for the next one. A permissive sandbox mode is not
+confirmation.
 
-Жёсткий запрет без подтверждения: `terraform|terragrunt apply|destroy`, `kubectl delete|patch|scale|rollout restart`,
-`argocd app sync|rollback|delete`, `helm upgrade|uninstall`, `vault write|delete`, `delete|update` облачного CLI,
-мутации CI. Когда агент не уверен, пишет ли команда, — считает, что пишет.
+Hard ban without confirmation: `terraform|terragrunt apply|destroy`, `kubectl delete|patch|scale|rollout restart`,
+`argocd app sync|rollback|delete`, `helm upgrade|uninstall`, `vault write|delete`, cloud CLI `delete|update`,
+CI mutations. When the agent is unsure whether a command writes, it assumes it does.
 
-## Слои защиты
+## Layers of protection
 
-Правила в AGENTS.md — это просьба к модели, не гарантия. Настоящие ограничения — снаружи:
+Rules in AGENTS.md are a request to the model, not a guarantee. The real restrictions are outside it:
 
-1. **Права агента.** Claude Code: `permissions.allow / ask / deny` в `~/.claude/settings.json` — пишущие команды в
-   `ask` или `deny`. Codex: `approval_policy = "on-request"`, песочница `read-only`/`workspace-write`.
-2. **Учётные данные только на чтение.** Где можно — отдельный read-only токен/роль для агента: тогда запись
-   невозможна, даже если модель ошибётся.
-3. **Write gate в MCP-сервере.** В sre-toolbox пишущие инструменты каждой системы выключены (`allow_writes: false`)
-   и включаются в `config.yaml` на стороне сервера, а не в промпте.
-4. **Субагенты без записи.** `kb-scout` не имеет пишущих инструментов вообще.
-5. **Обёртки для учётных данных.** Доступ к облаку — через скрипт-обёртку, который берёт ключи из Keychain и
-   выставляет переменные только для одной команды, вместо `export` в профиле. Разрешайте в настройках агента
-   конкретные подкоманды обёртки (`<wrapper> terraform plan`), а `apply` оставляйте в `ask`.
+1. **Agent permissions.** Claude Code: `permissions.allow / ask / deny` in `~/.claude/settings.json` — write commands
+   go into `ask` or `deny`. Codex: `approval_policy = "on-request"`, `read-only`/`workspace-write` sandbox.
+2. **Read-only credentials.** Where possible, a separate read-only token/role for the agent: then writes are
+   impossible even if the model makes a mistake.
+3. **Write gate in the MCP server.** In sre-toolbox the write tools of every system are off (`allow_writes: false`)
+   and are enabled in `config.yaml` on the server side, not in the prompt.
+4. **Subagents without writes.** `kb-scout` has no write tools at all.
+5. **Credential wrappers.** Cloud access goes through a wrapper script that takes keys from Keychain and sets the
+   variables for a single command only, instead of an `export` in your profile. In the agent's settings allow
+   specific wrapper subcommands (`<wrapper> terraform plan`) and keep `apply` in `ask`.
 
-## Секреты
+## Secrets
 
-- Не вставляйте в чат токены, ключи, kubeconfig, значения секретов — агент читает их сам через обёртки и MCP.
-- Правила запрещают агенту выводить секреты в ответы, документы, коммиты, артефакты и логи.
-- Автокоммит не коммитит файл, в котором похоже на секрет, и предупреждает.
-- Внешние поиски (документация, веб) — только с общими вопросами о технологиях, без внутренних имён и данных.
+- Do not paste tokens, keys, kubeconfigs or secret values into the chat — the agent reads them itself through
+  wrappers and MCP.
+- The rules forbid the agent from printing secrets in responses, documents, commits, artifacts and logs.
+- Autocommit does not commit a file that appears to contain a secret, and warns about it.
+- External searches (documentation, web) carry only generic technology questions, without internal names or data.
 
-## Публикация своего форка
+## Publishing your fork
 
-Перед `git push` в публичный репозиторий:
+Before `git push` to a public repository:
 
 ```bash
 python3 scripts/check_sanitized.py
 ```
 
-Проверка ищет приватные ключи, токены, внутренние IP, личные домашние пути, почту не на `example.*` и всё из вашего
-личного стоп-листа `.sanitize-denylist` (он в `.gitignore`): впишите туда название компании, внутренние домены,
-логины, префиксы задач. CI запускает ту же проверку на каждый push.
+The check looks for private keys, tokens, internal IPs, personal home paths, email addresses not on `example.*`, and
+everything in your personal denylist `.sanitize-denylist` (it is in `.gitignore`): put your company name, internal
+domains, logins and task prefixes there. CI runs the same check on every push.
 
-Командные процессы (шаблоны постмортема, задач, страниц спринта) вашей компании могут быть её собственностью.
-`team-skills/` в этом репозитории — обезличенные шаблоны методов; свои командные шаблоны держите в приватном
-форке или в отдельном репозитории компании.
+Your company's team processes (postmortem, task and sprint page templates) may be its property. `team-skills/` in
+this repository contains anonymized method templates; keep your own team templates in a private fork or in a separate
+company repository.

@@ -1,27 +1,29 @@
-# Локальная установка и запуск MCP-сервера
+**English** · [Русский](ru/install.md)
 
-← [Обратно в README](../README.md)
+# Local installation and running the MCP server
 
-Документ для разработчика: поднять `sre-toolbox` из agent-harness на своём ноуте, проверить подключение к
-Jira/Confluence/Obsidian и зарегистрировать сервер в Claude Code и Codex.
+← [Back to README](../README.md)
 
-Для production-режима (systemd, ротация токенов, hardening) — смотри [deployment.md](./deployment.md). Какие
-возможности MCP нужны скиллам harness — [../../../docs/mcp.md](../../../docs/mcp.md).
+A document for developers: bring up `sre-toolbox` from agent-harness on your laptop, check the connection to
+Jira/Confluence/Obsidian, and register the server in Claude Code and Codex.
+
+For production mode (systemd, token rotation, hardening), see [deployment.md](./deployment.md). Which
+MCP capabilities the harness skills need — [../../../docs/mcp.md](../../../docs/mcp.md).
 
 ---
 
-## 1. Требования
+## 1. Requirements
 
 - macOS / Linux.
-- Python **3.10+** (в коде используется `X | None`, PEP 604).
-- Клон agent-harness (ниже — `~/Projects/agent-harness`).
-- Personal Access Token от тех систем, которые подключаете (см. шаг 3).
+- Python **3.10+** (the code uses `X | None`, PEP 604).
+- A clone of agent-harness (below: `~/Projects/agent-harness`).
+- A Personal Access Token for each system you connect (see step 3).
 
 ---
 
-## 2. Подготовка окружения
+## 2. Preparing the environment
 
-venv живёт внутри каталога сервера (`mcp/sre-toolbox/.venv`, он в `.gitignore`):
+The venv lives inside the server directory (`mcp/sre-toolbox/.venv`, which is in `.gitignore`):
 
 ```bash
 cd ~/Projects/agent-harness/mcp/sre-toolbox
@@ -32,98 +34,98 @@ python3 -m venv .venv
 
 ---
 
-## 3. Секреты
+## 3. Secrets
 
-Токены хранятся **только локально** и никогда не попадают в репозиторий. Три способа:
+Tokens are stored **only locally** and never end up in the repository. Three options:
 
-1. **`.env` рядом с `server.py`** — сервер подгружает его сам; в `config.yaml` значения подставляются через
+1. **`.env` next to `server.py`** — the server loads it itself; values are substituted into `config.yaml` through
    `${VAR}`:
 
    ```bash
-   cp .env.example .env    # .env в .gitignore
+   cp .env.example .env    # .env is in .gitignore
    ```
 
-2. **Окружение / Keychain** — лаунчер (или блок `env` регистрации MCP) экспортирует переменные из Keychain перед
-   стартом, `config.yaml` ссылается на них через `${VAR}`.
-3. **Прямо в `config.yaml`** (он в `.gitignore`, держите права `0600`). Так делает
-   `scripts/set_grafana_token.py`: `pbpaste | .venv/bin/python scripts/set_grafana_token.py` проверяет токен Grafana
-   и записывает его в `grafana.auth.bearer_token`.
+2. **Environment / Keychain** — the launcher (or the `env` block of the MCP registration) exports the variables from
+   Keychain before startup, and `config.yaml` references them through `${VAR}`.
+3. **Directly in `config.yaml`** (it is in `.gitignore`; keep its mode at `0600`). This is what
+   `scripts/set_grafana_token.py` does: `pbpaste | .venv/bin/python scripts/set_grafana_token.py` checks the Grafana
+   token and writes it into `grafana.auth.bearer_token`.
 
-Как получить PAT в Jira Server / Data Center: аватар → **Profile** → **Personal Access Tokens** → **Create token**.
-У Confluence, GitLab, Mattermost и Grafana токены свои (см. комментарии в `.env.example`).
+How to get a PAT in Jira Server / Data Center: avatar → **Profile** → **Personal Access Tokens** → **Create token**.
+Confluence, GitLab, Mattermost and Grafana each have their own tokens (see the comments in `.env.example`).
 
 ---
 
-## 4. Конфиг — `config.yaml`
+## 4. Config — `config.yaml`
 
 ```bash
-cp config.example.yaml config.yaml   # config.yaml в .gitignore
+cp config.example.yaml config.yaml   # config.yaml is in .gitignore
 ```
 
-В шаблоне все `allow_writes: false` — сервер только читает. Чтобы, например, скилл `tracker-story` мог создавать
-задачи, включите запись точечно и сузьте её allowlist:
+In the template every `allow_writes` is `false` — the server only reads. To let, for example, the `tracker-story`
+skill create issues, enable writes selectively and narrow the allowlist:
 
 ```yaml
 jira:
-  url: "https://jira.example.com"     # свой инстанс, без слеша
+  url: "https://jira.example.com"     # your instance, no trailing slash
   auth:
     bearer_token: "${JIRA_PAT}"
-  allow_writes: true                  # ВКЛ: разрешаем создавать/менять задачи
+  allow_writes: true                  # ON: allow creating/changing issues
   allow_projects:
-    - "OPS"                           # белый список project keys
+    - "OPS"                           # allowlist of project keys
 
 obsidian:
   vault_path: "~/Documents/Obsidian/SRE"
-  # kb.py для kb_search/kb_list; по умолчанию ../../tools/kb.py этого репозитория
+  # kb.py for kb_search/kb_list; default is ../../tools/kb.py of this repository
   # kb_tool: "~/Projects/agent-harness/tools/kb.py"
-  allow_writes: true                  # если агент должен писать findings
+  allow_writes: true                  # if the agent should write findings
 
 server:
-  audit_log_path: ""                  # отключить JSONL-аудит (или укажите путь)
+  audit_log_path: ""                  # disable the JSONL audit (or set a path)
 ```
 
-`kb_search` / `kb_list` ищут в базе знаний, корень которой `kb.py` берёт из конфига harness
-(`paths.kb_root` в `~/.config/agent-harness/config.toml` или файл из `AGENT_HARNESS_CONFIG`).
+`kb_search` / `kb_list` search the knowledge base whose root `kb.py` takes from the harness config
+(`paths.kb_root` in `~/.config/agent-harness/config.toml` or the file from `AGENT_HARNESS_CONFIG`).
 
-Если состав команды нужен агенту для назначения задач — создайте `teams.md` по образцу
-[teams.example.md](../teams.example.md) (он в `.gitignore`).
+If the agent needs the team roster to assign issues, create `teams.md` following
+[teams.example.md](../teams.example.md) (it is in `.gitignore`).
 
 ---
 
-## 5. Obsidian-папка
+## 5. Obsidian folder
 
-Если используете отдельный Obsidian vault — создайте его и подпапки:
+If you use a separate Obsidian vault, create it and its subfolders:
 
 ```bash
 mkdir -p "$HOME/Documents/Obsidian/SRE"/{runbooks,postmortems,services,findings}
 ```
 
-Путь в `obsidian.vault_path` должен совпадать. Если vault и есть база знаний harness, укажите тот же путь, что и
-`paths.kb_root`.
+The path in `obsidian.vault_path` must match. If the vault is the harness knowledge base itself, set the same path
+as `paths.kb_root`.
 
 ---
 
-## 6. Проверка
+## 6. Verification
 
 ```bash
-# контрактные тесты (не ходят в сеть)
+# contract tests (no network access)
 .venv/bin/python -m unittest discover -s tests -v
 
-# конфиг валиден, tools регистрируются
+# config is valid, tools get registered
 .venv/bin/python -c "import server; print('ok, tools registered as', server.mcp.name)"
 
-# интерактивно — через MCP Inspector
+# interactively, through MCP Inspector
 .venv/bin/mcp dev server.py
 ```
 
-Сервер работает в **stdio**-режиме — JSON-RPC на stdin/stdout, логи в stderr. Ручной вызов tool через агента
-(например `jira_get_issue` по известному ключу) — проверка живых credentials.
+The server runs in **stdio** mode — JSON-RPC on stdin/stdout, logs to stderr. Calling a tool manually through the
+agent (for example `jira_get_issue` with a known key) checks the live credentials.
 
 ---
 
-## 7. Регистрация в Claude Code
+## 7. Register in Claude Code
 
-Глобально для пользователя:
+Globally for the user:
 
 ```bash
 claude mcp add --scope user sre-toolbox -- \
@@ -131,35 +133,35 @@ claude mcp add --scope user sre-toolbox -- \
   ~/Projects/agent-harness/mcp/sre-toolbox/server.py
 ```
 
-Если `config.yaml` лежит не рядом с `server.py`, добавьте `--env MCP_CONFIG=/полный/путь/config.yaml`.
-Для project-scope есть пример [`.mcp.example.json`](../.mcp.example.json) (в нём же — опциональный внешний
-VictoriaMetrics MCP).
+If `config.yaml` is not next to `server.py`, add `--env MCP_CONFIG=/full/path/config.yaml`.
+For project scope there is an example [`.mcp.example.json`](../.mcp.example.json) (it also includes the optional
+external VictoriaMetrics MCP).
 
-## 8. Регистрация в Codex
+## 8. Register in Codex
 
 `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.sre-toolbox]
-command = "/полный/путь/agent-harness/mcp/sre-toolbox/.venv/bin/python"
-args = ["/полный/путь/agent-harness/mcp/sre-toolbox/server.py"]
-# env = { MCP_CONFIG = "/полный/путь/к/config.yaml" }
+command = "/full/path/agent-harness/mcp/sre-toolbox/.venv/bin/python"
+args = ["/full/path/agent-harness/mcp/sre-toolbox/server.py"]
+# env = { MCP_CONFIG = "/full/path/to/config.yaml" }
 ```
 
-После регистрации перезапустите клиент: появятся `kb_*`, `jira_*`, `confluence_*`, `gitlab_*`, `mm_*`,
-`grafana_*`, `obsidian_*`, `am_*`, `vm_*`, `vl_*`. В конфиге harness (секция `[mcp]`, `hub = "sre-toolbox"`)
-укажите имя сервера и выполните `./harness install` — `kb-scout` получит запрет на его пишущие tools.
+After registering, restart the client: `kb_*`, `jira_*`, `confluence_*`, `gitlab_*`, `mm_*`, `grafana_*`,
+`obsidian_*`, `am_*`, `vm_*`, `vl_*` will appear. In the harness config (the `[mcp]` section, `hub = "sre-toolbox"`)
+set the server name and run `./harness install` — `kb-scout` will be denied its write tools.
 
 ---
 
-## 9. Траблшутинг
+## 9. Troubleshooting
 
-| Симптом | Что проверить |
+| Symptom | What to check |
 |--|--|
-| `config not found at ...` | `config.yaml` рядом с `server.py` или задайте `MCP_CONFIG=/path/to/config.yaml`. |
-| `jira не сконфигурирован в config.yaml` | Не заполнен `jira.url` или `jira.auth.bearer_token` пустой → проверьте `.env`/окружение. |
-| `запись в jira отключена` | `jira.allow_writes` не `true`. |
-| `проект X не в allow_projects` | Добавьте project key в `jira.allow_projects` (пустой список = без ограничения). |
-| `kb.py не найден: ...` | Задайте `obsidian.kb_tool` или проверьте, что `tools/kb.py` есть в клоне harness. |
-| Внутренние хосты не отвечают за прокси | Добавьте домены в `NO_PROXY` в форме `.corp.example.com` (см. [../../../docs/mcp.md](../../../docs/mcp.md)). |
-| IDE подсвечивает `httpx`/`mcp`/`dotenv` как unresolved | Выберите интерпретатор `./.venv/bin/python`. |
+| `config not found at ...` | `config.yaml` next to `server.py`, or set `MCP_CONFIG=/path/to/config.yaml`. |
+| `jira не сконфигурирован в config.yaml` ("jira is not configured") | `jira.url` is not filled in or `jira.auth.bearer_token` is empty → check `.env`/the environment. |
+| `запись в jira отключена` ("writing to jira is disabled") | `jira.allow_writes` is not `true`. |
+| `проект X не в allow_projects` ("project X is not in allow_projects") | Add the project key to `jira.allow_projects` (an empty list = no restriction). |
+| `kb.py не найден: ...` ("kb.py not found") | Set `obsidian.kb_tool` or check that `tools/kb.py` exists in the harness clone. |
+| Internal hosts don't respond through the proxy | Add the domains to `NO_PROXY` in the `.corp.example.com` form (see [../../../docs/mcp.md](../../../docs/mcp.md)). |
+| The IDE marks `httpx`/`mcp`/`dotenv` as unresolved | Select the `./.venv/bin/python` interpreter. |

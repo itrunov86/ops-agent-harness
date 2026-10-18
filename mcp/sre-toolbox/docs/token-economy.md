@@ -1,136 +1,138 @@
-# Экономия токенов и стоимости
+**English** · [Русский](ru/token-economy.md)
 
-← [Обратно в README](../README.md)
+# Saving tokens and cost
 
-Цена использования Claude складывается из входных токенов (промпт + tool results) и выходных (ответ модели). Для SRE-нагрузки **входные токены доминируют** в 10-50 раз, потому что логи и метрики массивны, а ответы короткие.
+← [Back to README](../README.md)
 
-> **Самый большой источник экономии — knowledge base в Obsidian.** Он вынесен в отдельный файл: [obsidian.md](./obsidian.md).
+The cost of using Claude consists of input tokens (prompt + tool results) and output tokens (the model's response). For an SRE workload, **input tokens dominate** by a factor of 10-50, because logs and metrics are massive while answers are short.
+
+> **The biggest source of savings is the knowledge base in Obsidian.** It has its own file: [obsidian.md](./obsidian.md).
 
 ---
 
-## Источники расходов
+## Sources of cost
 
-| Источник | Доля расхода | Что делать |
+| Source | Share of cost | What to do |
 |----------|--------------|------------|
-| Сырые логи в ответе `vl_query` | до 70% | Режим `patterns` (кластеризация на стороне MCP) |
-| Полные метрические ряды | 10-20% | `summarize=true` по умолчанию |
-| Повторяющиеся системные промпты и описания tools | 10-15% | Prompt caching |
-| Сама генерация ответа | 5-10% | Лимит `max_tokens` |
+| Raw logs in the `vl_query` response | up to 70% | `patterns` mode (clustering on the MCP side) |
+| Full metric series | 10-20% | `summarize=true` by default |
+| Repeated system prompts and tool descriptions | 10-15% | Prompt caching |
+| Generating the answer itself | 5-10% | `max_tokens` limit |
 
 ---
 
-## Минимизация на уровне MCP-сервера
+## Minimization at the MCP server level
 
-Это самое эффективное место для экономии — экономит и токены, и риски утечки одновременно.
+This is the most effective place to save — it saves both tokens and leak risk at the same time.
 
-**Конкретные приёмы:**
+**Specific techniques:**
 
-- Возвращайте JSON, не YAML и не plain text — JSON компактнее и токенизируется лучше.
-- Не возвращайте поля, которые не нужны для ответа. Pod-объект Kubernetes — это 200+ полей, нужны 5.
-- Дедуплицируйте: 10000 идентичных строк лога → одна строка + counter.
-- Сокращайте имена полей где это не вредит читаемости (`timestamp` → `ts`).
-- Возвращайте топ-N, не всё: топ-10 ошибок вместо всех 4000.
+- Return JSON, not YAML or plain text — JSON is more compact and tokenizes better.
+- Do not return fields that are not needed for the answer. A Kubernetes Pod object has 200+ fields; you need 5.
+- Deduplicate: 10000 identical log lines → one line + a counter.
+- Shorten field names where it does not hurt readability (`timestamp` → `ts`).
+- Return the top N, not everything: the top 10 errors instead of all 4000.
 
 ---
 
 ## Prompt caching
 
-Anthropic API поддерживает кэширование префиксов промпта. Закэшированные блоки стоят **в 10 раз дешевле** на входе.
+The Anthropic API supports caching of prompt prefixes. Cached blocks are **10 times cheaper** on input.
 
-Что кэшировать:
+What to cache:
 
-- Системный промпт с описанием роли (SRE-ассистент, правила, формат ответа).
-- Описания всех tools и их JSON-схем.
-- Стандартные runbook-шаблоны.
-- Глоссарий ваших сервисов (если используете консистентные имена).
+- The system prompt describing the role (SRE assistant, rules, response format).
+- Descriptions of all tools and their JSON schemas.
+- Standard runbook templates.
+- The glossary of your services (if you use consistent names).
 
-Реализация: добавить `cache_control` к этим блокам в API-вызове. TTL — 5 минут по умолчанию, можно расширить.
+Implementation: add `cache_control` to these blocks in the API call. TTL is 5 minutes by default and can be extended.
 
-Эффект на типичной SRE-нагрузке: -40-60% на входных токенах.
+Effect on a typical SRE workload: -40-60% on input tokens.
 
 ---
 
 ## Multi-model pipeline
 
-Используйте дешёвые модели для подготовительной работы, дорогие — только для финальных решений.
+Use cheap models for preparatory work and expensive ones only for final decisions.
 
-**Рекомендованная связка:**
+**Recommended combination:**
 
-| Этап | Модель | Стоимость относительно Opus |
+| Stage | Model | Cost relative to Opus |
 |------|--------|------------------------------|
-| Классификация алерта, парсинг логов, фильтрация | Haiku | ~1/15 |
-| Основной анализ инцидента, диагностика | Sonnet | ~1/3 |
-| Сложные случаи, формирование постмортема | Opus | 1 |
+| Alert classification, log parsing, filtering | Haiku | ~1/15 |
+| Main incident analysis, diagnostics | Sonnet | ~1/3 |
+| Complex cases, writing the postmortem | Opus | 1 |
 
-Реализация: MCP-сервер может сам делать предобработку через дешёвую модель перед тем, как отдать результат основной модели. Например `vl_query` под капотом просит Haiku кластеризовать строки → возвращает уже паттерны.
-
----
-
-## Семантический предпоиск
-
-Вместо того чтобы шлёпать в Claude кучу кода в поисках релевантного фрагмента:
-
-1. Локально на MCP-сервере держится векторный индекс по кодовой базе (Qdrant/Weaviate/pgvector).
-2. По запросу `search_code` сначала идёт семантический поиск, отбирается top-5 фрагментов.
-3. В Claude уходит только эти 5 фрагментов, а не весь файл или весь репо.
-
-Та же логика для рунбуков и постмортемов — реализована через [Obsidian](./obsidian.md).
+Implementation: the MCP server can pre-process with a cheap model itself before handing the result to the main model. For example, `vl_query` under the hood asks Haiku to cluster lines → returns patterns directly.
 
 ---
 
-## Приёмы для VictoriaMetrics
+## Semantic pre-search
 
-- **Всегда агрегации в PromQL**: `sum by (service) (rate(...))`, не сырые точки по подам.
-- **Уменьшайте step**: 60s вместо 15s, если нужен общий тренд.
-- **Используйте `summarize=true`** в `vm_query_range` — возвращает только min/max/p50/p95/p99 вместо ряда.
-- **Защита от high-cardinality**: парсер PromQL отвергает запросы вида `{*}` или с группировкой по `instance` без агрегации.
-- **Pre-computed recording rules**: для типичных вопросов («error rate сервиса X») держите готовые ряды в VM, чтобы Claude дёргал их вместо сложных вычислений.
+Instead of dumping a pile of code into Claude in search of the relevant fragment:
 
----
+1. A vector index of the codebase (Qdrant/Weaviate/pgvector) is kept locally on the MCP server.
+2. A `search_code` request first runs a semantic search and picks the top 5 fragments.
+3. Only these 5 fragments go to Claude, not the whole file or the whole repo.
 
-## Приёмы для VictoriaLogs
-
-VictoriaLogs — главный источник дорогих токенов. Несколько правил:
-
-- **Режим `patterns` по умолчанию**: кластеризация на стороне MCP-сервера. Возвращается шаблон + счётчик, а не строки.
-- **Фильтрация в LogsQL**, не в Claude: пусть VictoriaLogs сам отбрасывает нерелевантное (`_stream:{service="x"} error -healthcheck`).
-- **Используйте `_stream:{...}` селектор** — это самый дешёвый фильтр в LogsQL, он работает по индексу.
-- **Лимит 500 строк потолок**, по умолчанию 100. Если SRE действительно нужно больше — пусть формулирует точнее.
-- **Структурный парсинг JSON на сервере**: после извлечения нужных полей (`_msg`, `level`, `trace_id`) возвращайте только их, не всю строку.
-- **Дедупликация по hash**: если 200 одинаковых строк — отдайте одну с `count=200` (это и делает режим `patterns`).
-- **Узкое окно времени**: `max_query_window_hours` в конфиге запрещает запросы шире 24ч.
+The same logic applies to runbooks and postmortems — implemented via [Obsidian](./obsidian.md).
 
 ---
 
-## Метрики и алерты на расход
+## Techniques for VictoriaMetrics
 
-MCP-сервер должен сам экспортировать метрики в Prometheus/VictoriaMetrics:
-
-- `mcp_tool_calls_total{tool, status}` — счётчик вызовов.
-- `mcp_tokens_estimated_total{tool, direction}` — оценка отправленных и полученных токенов (по длине JSON).
-- `mcp_tool_response_size_bytes` — гистограмма размеров ответов.
-- `mcp_redaction_hits_total{rule}` — сколько раз срабатывало правило редактуры (важно для безопасности).
-
-Алерты:
-
-- Аномальный рост `mcp_tokens_estimated_total` (взрыв стоимости).
-- Аномалии в `mcp_tool_response_size_bytes` (кто-то начал слать огромные ответы).
-- Любой `mcp_redaction_hits_total > 0` — в SIEM для разбора.
+- **Always aggregate in PromQL**: `sum by (service) (rate(...))`, not raw per-pod points.
+- **Use a coarser step**: 60s instead of 15s if you need the overall trend.
+- **Use `summarize=true`** in `vm_query_range` — returns only min/max/p50/p95/p99 instead of the series.
+- **High-cardinality protection**: the PromQL parser rejects queries like `{*}` or grouping by `instance` without aggregation.
+- **Pre-computed recording rules**: for typical questions ("error rate of service X") keep ready-made series in VM so Claude queries them instead of complex computations.
 
 ---
 
-## Расчёт стоимости — порядок цифр
+## Techniques for VictoriaLogs
 
-Грубая прикидка для команды из 10 SRE при использовании Sonnet с prompt caching и всеми оптимизациями выше:
+VictoriaLogs is the main source of expensive tokens. A few rules:
 
-- 50-200 инцидентов в день
-- Средний разбор: 5-10 tool calls, 20-50K входных токенов, 1-2K выходных
-- При cached input ~$0.30 / 1M, output ~$15 / 1M
-
-Получается порядок **$50-200 в день на всю команду** при разумной настройке. Без оптимизаций — легко в 5-10 раз больше.
+- **`patterns` mode by default**: clustering on the MCP server side. It returns a template + counter, not lines.
+- **Filter in LogsQL**, not in Claude: let VictoriaLogs discard what is irrelevant (`_stream:{service="x"} error -healthcheck`).
+- **Use the `_stream:{...}` selector** — it is the cheapest filter in LogsQL; it works on the index.
+- **A 500-line ceiling**, 100 by default. If an SRE really needs more, they should phrase the query more precisely.
+- **Structured JSON parsing on the server**: after extracting the needed fields (`_msg`, `level`, `trace_id`) return only them, not the whole line.
+- **Deduplication by hash**: if there are 200 identical lines, return one with `count=200` (this is what `patterns` mode does).
+- **Narrow time window**: `max_query_window_hours` in the config forbids queries wider than 24h.
 
 ---
 
-## Главное правило
+## Cost metrics and alerts
 
-**Экономия и безопасность совпадают.** Чем меньше вы отправляете, тем дешевле и безопаснее. Большинство оптимизаций токенов одновременно снижают и риск утечки кода — см. [security.md](./security.md).
+The MCP server should export metrics to Prometheus/VictoriaMetrics itself:
+
+- `mcp_tool_calls_total{tool, status}` — call counter.
+- `mcp_tokens_estimated_total{tool, direction}` — estimate of sent and received tokens (by JSON length).
+- `mcp_tool_response_size_bytes` — histogram of response sizes.
+- `mcp_redaction_hits_total{rule}` — how many times a redaction rule fired (important for security).
+
+Alerts:
+
+- Anomalous growth of `mcp_tokens_estimated_total` (cost explosion).
+- Anomalies in `mcp_tool_response_size_bytes` (someone started sending huge responses).
+- Any `mcp_redaction_hits_total > 0` — to the SIEM for review.
+
+---
+
+## Cost estimate — order of magnitude
+
+A rough estimate for a team of 10 SREs using Sonnet with prompt caching and all the optimizations above:
+
+- 50-200 incidents per day
+- Average investigation: 5-10 tool calls, 20-50K input tokens, 1-2K output
+- With cached input ~$0.30 / 1M, output ~$15 / 1M
+
+That comes to roughly **$50-200 per day for the whole team** with a reasonable setup. Without optimizations it is easily 5-10 times more.
+
+---
+
+## The main rule
+
+**Savings and security coincide.** The less you send, the cheaper and safer it is. Most token optimizations also reduce the risk of leaking code — see [security.md](./security.md).

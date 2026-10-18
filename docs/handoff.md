@@ -1,63 +1,68 @@
-# Журналы длинных задач
+**English** · [Русский](ru/handoff.md)
 
-Задача, которая не помещается в один чат, ведёт журнал `<kb_root>/tasks/<KEY>-<slug>/handoff.md`. Журнал — записка
-следующему агенту, а не история чата: цель, где остановились, одно следующее действие, решения, сделанное, грабли.
-Хуки подставляют его в контекст сами, и новый чат продолжает с места остановки.
+# Long-task journals
 
-## Жизненный цикл
+A task that does not fit into one chat keeps a journal at `<kb_root>/tasks/<KEY>-<slug>/handoff.md`. The journal is a
+note to the next agent, not a chat history: the goal, where work stopped, one next action, decisions, what was done,
+pitfalls. Hooks inject it into the context automatically, and a new chat picks up where the last one stopped.
 
-| Момент | Что вы делаете | Что происходит |
+## Lifecycle
+
+| Moment | What you do | What happens |
 |---|---|---|
-| Задача точно не влезет в один чат | «заведи handoff» | `agent_session.py start <KEY> <slug>` создаёт журнал, чат привязывается; агент заполняет цель и критерий готовности |
-| Закончен этап, принято решение | ничего (или «обнови handoff») | агент переписывает «Сейчас», дописывает «Решения», «Сделано», «Грабли» |
-| Контекст 50% | ничего | хук напоминает, агент коротко обновляет журнал |
-| Контекст 75% | дождаться обновления → `/compact` или новый чат | агент обновляет и коммитит журнал |
-| Продолжить завтра | **новый чат** в `work_dir`: `OPS-1234 продолжаем` | хук подставляет журнал, агент начинает со «Следующего шага» |
-| Задача сделана | «закрой задачу» | `lifecycle: historical`, устойчивые факты — в `decisions/` и `reference/` |
+| The task clearly won't fit into one chat | "start a handoff" | `agent_session.py start <KEY> <slug>` creates the journal and binds the chat; the agent fills in the goal and the definition of done |
+| A stage is finished, a decision is made | nothing (or "update the handoff") | the agent rewrites "Сейчас" (Now) and appends to "Решения", "Сделано", "Грабли" |
+| Context at 50% | nothing | a hook reminds the agent, which briefly updates the journal |
+| Context at 75% | wait for the update → `/compact` or a new chat | the agent updates and commits the journal |
+| Continue tomorrow | **a new chat** in `work_dir`: `OPS-1234 continue` | the hook injects the journal, the agent starts from "Next step" |
+| The task is done | "close the task" | `lifecycle: historical`; durable facts go to `decisions/` and `reference/` |
 
-Проверка: первым сообщением нового чата спросите «что было сделано до этого?» — агент должен назвать нужную задачу.
+Check: make your first message in a new chat "what has been done so far?" — the agent should name the right task.
 
-## Разделы журнала
+## Journal sections
 
-| Раздел | Как ведётся |
+The journal template uses Russian headings; the English names are given in parentheses.
+
+| Section | How it is maintained |
 |---|---|
-| Цель и критерий готовности | Один раз при заведении |
-| Сейчас | **Перезаписывается**: где остановились, одно следующее действие, что ждём от пользователя |
-| Решения | Дописывается: что выбрали и почему, отвергнутое тоже — чтобы не предлагали снова |
-| Сделано | Дописывается: коммит, MR, проверка с результатом |
-| Грабли | Дописывается: что сломалось или обмануло и как обойти |
-| Уроки | Дописывается: вход для `/retro` |
+| Цель и критерий готовности (Goal and definition of done) | Once, when the journal is created |
+| Сейчас (Now) | **Overwritten**: where work stopped, one next action, what we are waiting for from the user |
+| Решения (Decisions) | Appended: what was chosen and why, including what was rejected — so it is not proposed again |
+| Сделано (Done) | Appended: commit, MR, check with its result |
+| Грабли (Pitfalls) | Appended: what broke or misled and how to work around it |
+| Уроки (Lessons) | Appended: input for `/retro` |
 
-Журнал держится короче 120 строк: детали — в коммитах, документах задачи и ссылках.
+Keep the journal under 120 lines: details go into commits, task documents and links.
 
-## Привязка к чату
+## Binding to a chat
 
-Журнал привязывается к **чату** (идентификатору сессии), а не к папке. Поэтому все чаты могут жить в одной
-`work_dir`, и каждый получает свой журнал.
+A journal is bound to a **chat** (the session ID), not to a folder. So all chats can live in one `work_dir`, and
+each gets its own journal.
 
-Хук находит журнал чата в таком порядке:
+The hook finds a chat's journal in this order:
 
-1. ключ задачи в имени git-ветки папки чата (если чат открыт прямо в worktree задачи);
-2. привязка чата (`<state_dir>/session-tasks.json`);
-3. привязка папки (`<state_dir>/active-tasks.json`) — только для папок, в пути которых есть ключ задачи.
+1. the task key in the git branch name of the chat's folder (if the chat is opened directly in the task worktree);
+2. the chat binding (`<state_dir>/session-tasks.json`);
+3. the folder binding (`<state_dir>/active-tasks.json`) — only for folders whose path contains a task key.
 
-Чат привязывается, когда:
+A chat is bound when:
 
-- сообщение **начинается** с ключа задачи, у которой есть журнал (`OPS-1234 продолжаем`);
-- в сообщении есть «работаем по / продолжаем / переключаемся на» + ключ;
-- агент запускает `agent_session.py start <KEY>` (именно запуск, а не упоминание в тексте);
-- агент записывает в `tasks/<KEY>-*/handoff.md`.
+- the message **starts** with the key of a task that has a journal (`OPS-1234 continue`, `OPS-1234 продолжаем`);
+- the message contains "working on / continue / switch to" + the key (`working on OPS-1234`, `switch to OPS-1240`),
+  or the Russian equivalents "работаем по / продолжаем / переключаемся на" + the key;
+- the agent runs `agent_session.py start <KEY>` (actually runs it, not just mentions it in text);
+- the agent writes to `tasks/<KEY>-*/handoff.md`.
 
-Ключ в середине обычной фразы («похоже на OPS-1234») чат не привязывает — иначе разбор алерта подхватывал бы
-журнал соседней задачи. Ключ без журнала — тоже нет.
+A key in the middle of an ordinary sentence ("looks like OPS-1234") does not bind the chat — otherwise an alert
+investigation would pick up the journal of a neighbouring task. A key without a journal does not bind either.
 
-После `/compact` и `--resume` идентификатор чата тот же — журнал подставится сам. После `/clear` идентификатор новый:
-назовите ключ снова. Привязки старше 30 дней удаляются.
+After `/compact` and `--resume` the chat ID stays the same, so the journal is injected automatically. After `/clear`
+the ID is new: name the key again. Bindings older than 30 days are removed.
 
-## Почему не продолжать старый чат
+## Why not continue the old chat
 
-Чат на десятки мегабайт при продолжении сразу сожмётся — получится почти то же, что журнал, только дороже и с
-потерями. Журнал написан для продолжения: в нём следующий шаг, а не пересказ.
+A chat of tens of megabytes is compacted right away when resumed — you get almost the same thing as the journal,
+only more expensive and lossy. The journal is written for continuation: it holds the next step, not a retelling.
 
-Правило: если решение, ответ подрядчика или номер MR остались «только в чате», следующий агент их не увидит.
-Попросите «запиши в handoff».
+Rule: if a decision, a contractor's answer or an MR number exists "only in the chat", the next agent will not see it.
+Ask "write it to the handoff".

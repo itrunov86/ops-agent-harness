@@ -1,32 +1,34 @@
-# Требования к работе с репозиторием
+**English** · [Русский](REQUIREMENTS.ru.md)
 
-Эти правила применяются ко всем сессиям агентов, которые меняют `mcp/sre-toolbox`.
+# Repository requirements
+
+These rules apply to every agent session that changes `mcp/sre-toolbox`.
 
 ## Git
 
-- Коммиты и MR — по правилам agent-harness ([CONTRIBUTING.md](../../CONTRIBUTING.md)); `config.yaml`, `.env`, `teams.md`, `certs/` в git не попадают.
-- Перед коммитом: `python3 scripts/check_sanitized.py` из корня harness — ни имён организации, ни внутренних хостов.
+- Commits and MRs follow the agent-harness rules ([CONTRIBUTING.md](../../CONTRIBUTING.md)); `config.yaml`, `.env`, `teams.md`, `certs/` never go into git.
+- Before committing: `python3 scripts/check_sanitized.py` from the harness root — no organization names, no internal hosts.
 
-## Структура
+## Structure
 
-- Командные скиллы живут в `../../team-skills/` agent-harness, не здесь.
-- Tools живут в `tools/` — по одному файлу на интеграцию. Каждый экспортирует `register(mcp, cfg, client_factory, redactor, audit_fn)`.
-- Новый tool к существующей интеграции — добавить в `tools/X.py` внутри `register()`.
-- Новая интеграция — добавить блок в конфиг + `_client_X` в `server.py` + `tools/X.py` + вызов register.
+- Team skills live in agent-harness `../../team-skills/`, not here.
+- Tools live in `tools/` — one file per integration. Each exports `register(mcp, cfg, client_factory, redactor, audit_fn)`.
+- A new tool for an existing integration goes into `tools/X.py` inside `register()`.
+- A new integration: a config block + `_client_X` in `server.py` + `tools/X.py` + the register call.
 
-## Код
+## Code
 
-- Тела Jira/Confluence — всегда **wiki markup** (`h1.`, `*bold*`, `*` списки, `||` таблицы), не markdown.
-- Все ответы tools прогонять через `redactor.scrub_any(...)` перед возвратом.
-- `print` в stdout запрещён — ломает stdio-протокол. Логировать через `logging`.
+- Jira/Confluence bodies are always **wiki markup** (`h1.`, `*bold*`, `*` lists, `||` tables), not markdown.
+- Pass every tool response through `redactor.scrub_any(...)` before returning it.
+- `print` to stdout is forbidden — it breaks the stdio protocol. Log through `logging`.
 
 ## Knowledge base (Obsidian)
 
-- Перед дорогим анализом (логи/метрики/прод) — сначала `obsidian_search`.
-- После нетривиального разбора — `obsidian_append_finding` с параметром `related_notes` для `[[wikilinks]]`.
-- Скиллы, порождающие знание (`postmortem` и др.), должны включать шаг записи в vault.
+- Before expensive analysis (logs/metrics/prod) — `obsidian_search` first.
+- After a non-trivial investigation — `obsidian_append_finding` with `related_notes` for `[[wikilinks]]`.
+- Skills that produce knowledge (`postmortem` and others) must include a step that writes to the vault.
 
-## Документация
+## Documentation
 
-- При изменении архитектуры обновлять: `AGENTS.md`, `README.md`, `docs/architecture.md`.
-- Упоминания удалённых фич (Redis-кэш, Postgres audit) — убирать из всех файлов.
+- When the architecture changes, update `AGENTS.md`, `README.md`, `docs/architecture.md`.
+- Mentions of removed features (Redis cache, Postgres audit) are removed from all files.

@@ -61,7 +61,8 @@ For any change to files in a work Git repo (not `{{KB_ROOT}}`, see its own rules
 ## Long tasks
 
 - All chats start from `{{WORK_DIR}}`; the task journal is bound to the chat, not the folder. A message that
-  starts with a key (`{{TICKET_EXAMPLE}} продолжаем`) binds the chat to that task's journal.
+  starts with a key (`{{TICKET_EXAMPLE}} continue` / `{{TICKET_EXAMPLE}} продолжаем`) or says `working on` / `switch to`
+  `{{TICKET_EXAMPLE}}` (`работаем по` / `переключаемся на`) binds the chat to that task's journal.
 - A task longer than one session keeps its journal through the `handoff` skill
   (`{{KB_ROOT}}/tasks/<KEY>-<slug>/handoff.md`); hooks nudge at the configured context thresholds and restore the
   journal after compaction.

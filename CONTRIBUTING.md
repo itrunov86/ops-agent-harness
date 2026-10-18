@@ -1,44 +1,47 @@
-# Как устроен репозиторий и как в него вносить изменения
+**English** · [Русский](CONTRIBUTING.ru.md)
 
-## Подстановки
+# How the repository is organized and how to contribute
 
-Скиллы, агенты и шаблоны в репозитории не знают ни одного конкретного пути, хоста, проекта трекера или человека.
-Всё, что зависит от места работы, записано подстановкой `{{ИМЯ}}`; `./harness install` заменяет их значениями
-из `~/.config/agent-harness/config.toml` и раскладывает результат по местам.
+## Placeholders
 
-| Подстановка | Что это | Пример значения |
+The skills, agents and templates in this repository do not know a single concrete path, host, tracker project or
+person. Everything that depends on the workplace is written as a `{{NAME}}` placeholder; `./harness install`
+replaces them with values from `~/.config/agent-harness/config.toml` and puts the result in place.
+
+| Placeholder | What it is | Example value |
 |---|---|---|
-| `{{HARNESS_HOME}}` | где лежит этот репозиторий | `~/Projects/agent-harness` |
-| `{{KB_ROOT}}` | база знаний (git-репозиторий, он же Obsidian vault) | `~/work/docs` |
-| `{{WORK_DIR}}` | общая папка, из которой открываются все чаты | `~/work/chats` |
-| `{{ORG_NAME}}` | короткое имя организации | `Acme` |
-| `{{TICKET_PREFIXES}}` | префиксы ключей трекера через `\|` | `OPS\|INC` |
-| `{{TICKET_EXAMPLE}}` | пример ключа | `OPS-1234` |
-| `{{TRACKER_PROJECT}}` | проект для новых задач | `OPS` |
-| `{{TRACKER_ISSUE_TYPE}}` | тип новой задачи | `Task` |
-| `{{TRACKER_ASSIGNEE}}` | исполнитель по умолчанию (логин в трекере) | `jdoe` |
-| `{{TRACKER_URL}}` | адрес трекера | `https://jira.example.com` |
-| `{{WIKI_SPACE}}` | пространство вики для статей и разборов | `OPS` |
-| `{{CHAT_URL}}` | адрес корпоративного чата (ссылки на треды) | `https://chat.example.com` |
-| `{{ALERT_CHANNELS}}` | каналы алертов через запятую | `alerts, infra-alerts` |
-| `{{MCP_HUB}}` | имя основного MCP-сервера интеграций | `sre-toolbox` |
+| `{{HARNESS_HOME}}` | where this repository lives | `~/Projects/agent-harness` |
+| `{{KB_ROOT}}` | the knowledge base (a Git repository that is also an Obsidian vault) | `~/work/docs` |
+| `{{WORK_DIR}}` | the shared folder all chats are opened from | `~/work/chats` |
+| `{{ORG_NAME}}` | short organization name | `Acme` |
+| `{{TICKET_PREFIXES}}` | tracker key prefixes separated by `\|` | `OPS\|INC` |
+| `{{TICKET_EXAMPLE}}` | example key | `OPS-1234` |
+| `{{TRACKER_PROJECT}}` | project for new issues | `OPS` |
+| `{{TRACKER_ISSUE_TYPE}}` | type of a new issue | `Task` |
+| `{{TRACKER_ASSIGNEE}}` | default assignee (tracker login) | `jdoe` |
+| `{{TRACKER_URL}}` | tracker address | `https://jira.example.com` |
+| `{{WIKI_SPACE}}` | wiki space for articles and reviews | `OPS` |
+| `{{CHAT_URL}}` | corporate chat address (thread links) | `https://chat.example.com` |
+| `{{ALERT_CHANNELS}}` | alert channels, comma-separated | `alerts, infra-alerts` |
+| `{{MCP_HUB}}` | name of the main integrations MCP server | `sre-toolbox` |
 
-Правило для авторов: в файле, который попадает в репозиторий, не должно быть ни одного реального имени
-организации, хоста, IP, ID облака, логина или ключа задачи. `scripts/check_sanitized.py` проверяет общие шаблоны
-(внутренние IP, токены, приватные ключи) и ваш личный стоп-лист `.sanitize-denylist` (он в `.gitignore`).
+Rule for authors: a file that goes into the repository must not contain a single real organization name, host,
+IP, cloud ID, login or task key. `scripts/check_sanitized.py` checks generic patterns (internal IPs, tokens,
+private keys) and your personal denylist `.sanitize-denylist` (it is in `.gitignore`).
 
-## Возможности MCP вместо имён инструментов
+## MCP capabilities instead of tool names
 
-Скиллы описывают нужную возможность, а конкретный инструмент называют примером: «получи задачу трекера
-(`jira_get_issue`)». Таблица возможностей и того, какие MCP-серверы их дают, — `docs/mcp.md`. Если у пользователя
-другого MCP-сервера нет, у каждого шага есть запасной путь (CLI, `kb.py`).
+Skills describe the capability they need and name a concrete tool only as an example: "get the tracker issue
+(`jira_get_issue`)". The table of capabilities and which MCP servers provide them is in `docs/mcp.md`. If the user
+has no such MCP server, every step has a fallback (CLI, `kb.py`).
 
-## Язык
+## Language
 
-Документация и командные скиллы — на русском, инфраструктурные скиллы — на английском (как в исходниках).
-Фразы-триггеры скиллов оставляйте на языке, на котором пользователь будет их писать.
+Documentation is in English, with a Russian translation in `docs/ru/` and `*.ru.md`. Team skills are in Russian,
+infrastructure skills are in English (as in the sources). Keep skill trigger phrases in the language the user
+will type them in.
 
-## Проверки
+## Checks
 
 ```bash
 python3 -m unittest discover -s tests -v

@@ -1,44 +1,44 @@
-# agent-harness: конфиг одной машины. Скопируй в ~/.config/agent-harness/config.toml
-# (или запусти `./harness init` — он спросит значения) и выполни `./harness install`.
-# Секретов здесь нет и не должно быть: токены MCP-серверов живут в их собственных конфигах или Keychain.
+# agent-harness: per-machine config. Copy it to ~/.config/agent-harness/config.toml
+# (or run `./harness init` — it will ask for the values) and run `./harness install`.
+# There are no secrets here and there must not be: MCP server tokens live in their own configs or Keychain.
 
 [org]
-name = "Acme"                         # короткое имя организации — в шапке правил агентов
+name = "Acme"                         # short organization name — shown in the header of the agent rules
 
 [paths]
-kb_root   = "~/work/docs"             # база знаний: git-репозиторий, он же Obsidian vault
-work_dir  = "~/work/chats"            # общая папка: из неё открываются все чаты агентов
-code_root = "~/work/git"              # необязательно: где лежат рабочие репозитории (для agent_bench)
-reports_dir = "~/work/reports"        # отчёты agent_bench и прочие выгрузки
-state_dir = "~/.agents/state"         # служебное состояние хуков (привязки чатов, автокоммит)
+kb_root   = "~/work/docs"             # knowledge base: a git repository that is also the Obsidian vault
+work_dir  = "~/work/chats"            # shared folder: all agent chats are opened from it
+code_root = "~/work/git"              # optional: where work repositories live (for agent_bench)
+reports_dir = "~/work/reports"        # agent_bench reports and other exports
+state_dir = "~/.agents/state"         # internal hook state (chat bindings, autocommit)
 
 [tracker]
-prefixes   = ["OPS", "INC"]           # префиксы ключей задач; по ним хуки узнают задачу в сообщении
+prefixes   = ["OPS", "INC"]           # task key prefixes; hooks use them to recognize a task in a message
 example    = "OPS-1234"
-project    = "OPS"                    # куда агент заводит задачу, если ключа нет
+project    = "OPS"                    # where the agent creates an issue when there is no key
 issue_type = "Task"
-assignee   = "jdoe"                   # логин исполнителя по умолчанию
+assignee   = "jdoe"                   # default assignee login
 url        = "https://jira.example.com"
 
 [wiki]
-space = "OPS"                         # пространство вики для статей дежурства и постмортемов
+space = "OPS"                         # wiki space for on-call articles and postmortems
 
 [chat]
-url = "https://chat.example.com"      # для ссылок на треды
+url = "https://chat.example.com"      # for links to threads
 alert_channels = ["alerts", "infra-alerts"]
 
 [mcp]
-hub = "sre-toolbox"                   # имя основного MCP-сервера интеграций; sre-toolbox входит в harness (mcp/)
+hub = "sre-toolbox"                   # name of the main integrations MCP server; sre-toolbox ships with the harness (mcp/)
 
 [agents]
-claude = true                         # ставить скиллы, агентов и хуки для Claude Code
-codex  = true                         # ... и для Codex
+claude = true                         # install skills, agents and hooks for Claude Code
+codex  = true                         # ... and for Codex
 
 [skills]
-team = true                           # ставить шаблоны командных процессов из team-skills/
-exclude = []                          # имена скиллов, которые не нужны, например ["yandex-cloud-devops"]
+team = true                           # install team process templates from team-skills/
+exclude = []                          # names of skills you don't need, e.g. ["yandex-cloud-devops"]
 
 [hooks]
-handoff_thresholds = [50, 75]         # на каком заполнении контекста (%) просить обновить журнал
-autocommit = true                     # коммитить правки агента в kb_root в конце каждого ответа
-kb_context = true                     # подмешивать в запрос найденные по ключам задач документы
+handoff_thresholds = [50, 75]         # context fill levels (%) at which to ask for a journal update
+autocommit = true                     # commit the agent's edits in kb_root at the end of each response
+kb_context = true                     # add documents found by task keys to the prompt

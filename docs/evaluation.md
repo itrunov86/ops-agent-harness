@@ -1,40 +1,43 @@
-# Как проверить, что правка обвязки помогла
+**English** · [Русский](ru/evaluation.md)
 
-Правку в правилах или скилле легко внести и трудно оценить «на глаз». Два инструмента.
+# How to check that a harness change helped
 
-## Качество поиска: `kb.py eval`
+A change to the rules or a skill is easy to make and hard to judge by eye. There are two tools.
 
-`<kb_root>/navigation/golden-questions.tsv` — `запрос<TAB>регулярка ожидаемого пути`. `kb.py eval` прогоняет все
-вопросы и считает hit@1 и hit@3; ниже `--min-hit3` (0.8) — код выхода 1.
+## Search quality: `kb.py eval`
 
-- Добавляйте вопрос каждый раз, когда поиск промахнулся на реальном вопросе.
-- Формулируйте, как спрашивают коллеги, а не как назван документ: вопросы автора завышают оценку в разы.
-- Прогоняйте после правки глоссария, весов и структуры документов.
+`<kb_root>/navigation/golden-questions.tsv` — `query<TAB>regex of the expected path`. `kb.py eval` runs all the
+questions and computes hit@1 and hit@3; below `--min-hit3` (0.8) it exits with code 1.
 
-## Поведение агентов: `agent_bench.py`
+- Add a question every time search misses on a real question.
+- Phrase it the way colleagues ask, not the way the document is titled: the author's own questions inflate the score
+  several times over.
+- Run it after changing the glossary, the weights or the document structure.
 
-A/B-прогон агентов на ваших вопросах к базе и коду — только чтение, живые системы запрещены.
+## Agent behaviour: `agent_bench.py`
+
+An A/B run of agents on your questions about the knowledge base and code — read-only, live systems are forbidden.
 
 ```bash
 python3 tools/agent_bench.py run --variants A,B --jobs 3          # Claude Code
 python3 tools/agent_bench.py run --agent codex --ids 1,2,3
-python3 tools/agent_bench.py report <папка результатов>
+python3 tools/agent_bench.py report <results folder>
 ```
 
-Вопросы — `<kb_root>/navigation/agent-bench-tasks.json`:
+Questions are in `<kb_root>/navigation/agent-bench-tasks.json`:
 
 ```json
-[{"id": 1, "kind": "rca", "q": "почему registry отдавал 504 в январе?", "facts": ["proxy-body-size", "OPS-12\\d\\d"]}]
+[{"id": 1, "kind": "rca", "q": "why was the registry returning 504 in January?", "facts": ["proxy-body-size", "OPS-12\\d\\d"]}]
 ```
 
-`facts` — регулярки ключевых фактов правильного ответа. Метрики: доля найденных фактов, пик контекста основного
-агента, стоимость, время, шаги. Встроенные варианты: A — основной агент ищет сам, B — поиск поручается `kb-scout`.
-Свои варианты — правка `run_one` (другой системный промпт, другой набор инструментов).
+`facts` are regexes for the key facts of a correct answer. Metrics: share of facts found, peak context of the main
+agent, cost, time, steps. Built-in variants: A — the main agent searches by itself, B — search is delegated to
+`kb-scout`. Your own variants: edit `run_one` (a different system prompt, a different tool set).
 
-Цикл, который работает:
+The loop that works:
 
-1. Заметили проблему (в `/retro` или в журнале, раздел «Уроки»).
-2. Сформулировали правку обвязки: правило, скилл, хук, инструмент.
-3. Прогнали bench без правки и с ней на 5–10 вопросах.
-4. Приняли правку, только если выросли факты или упали контекст/стоимость без потери фактов.
-5. Записали решение в `decisions/` базы с цифрами.
+1. Notice a problem (in `/retro` or in the journal's "Lessons" section).
+2. Formulate a harness change: a rule, a skill, a hook, a tool.
+3. Run the bench without and with the change on 5–10 questions.
+4. Accept the change only if facts went up, or context/cost went down without losing facts.
+5. Record the decision in the base's `decisions/` with the numbers.
