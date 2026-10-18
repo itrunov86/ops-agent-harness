@@ -1,8 +1,8 @@
-h2. Симптом
+h2. Симптом / Алерт
 
 {symptom}
 
-h2. Важно: {key_warning_title}
+h2. Важно — {key_warning_title}
 
 {key_warning}
 
@@ -14,13 +14,15 @@ h2. Решение
 
 {solution}
 
-h2. Когда эскалировать
+h2. Эскалация
 
 {escalation}
 
-h2. Ссылки
+h2. Связанные ссылки
 
 {links}
 
 ----
-_Источник: {source}_
+{noformat}
+Источник: {source}
+{noformat}

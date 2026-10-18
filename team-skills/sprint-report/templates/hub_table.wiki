@@ -1,5 +1,0 @@
-h1. Спринты
-
-|| Спринт || Период || Задач взято || Завершено || Статус ||
-| [{label}|{page_url}] | {period} | {taken} | {done} | {status} |
-{previous_rows}

@@ -22,9 +22,9 @@
 | Возможность | Кому нужна | Примеры инструментов | Без MCP |
 |---|---|---|---|
 | Поиск по базе знаний | все | `kb_search`, `kb_list` — **входит в harness** (`tools/kb_mcp.py`) | `kb.py search` |
-| Трекер: прочитать, найти, создать, комментировать, перевести | request-triage, tracker-*, postmortem, sprint-report | `jira_get_issue`, `jira_search`, `jira_create_issue`, `jira_add_comment` | веб-интерфейс, `jira` CLI |
+| Трекер: прочитать, найти, создать, комментировать, перевести | request-triage, jira-planning-*, postmortem, sprint-report, contractor-report | `jira_get_issue`, `jira_search`, `jira_create_issue`, `jira_add_comment` | веб-интерфейс, `jira` CLI |
 | Вики: найти, прочитать, создать, обновить страницу | duty-notes, postmortem, quarterly-planning, sprint-report | `confluence_search`, `confluence_get_page`, `confluence_create_page` | веб-интерфейс |
-| Чат: тред по ссылке, посты канала, поиск | request-triage, alerts-digest | `mm_resolve_permalink`, `mm_get_thread`, `mm_list_channel_posts` | скопировать текст треда в чат |
+| Чат: тред по ссылке, посты канала, поиск | request-triage, mattermost-alerts-digest | `mm_resolve_permalink`, `mm_get_thread`, `mm_list_channel_posts` | скопировать текст треда в чат |
 | Алерты: активные, silences | request-triage, observability-triage | `am_active_alerts`, `am_silences` | `amtool alert query` |
 | Метрики: instant/range запросы с агрегацией | observability-triage, request-triage | `vm_query`, `vm_query_range`, `query_range` | `curl /api/v1/query_range`, Grafana |
 | Логи: запрос с группировкой по шаблонам | observability-triage, kubernetes-runtime-triage | `vl_query`, `loki_query` | `kubectl logs`, LogsQL/LogQL в UI |

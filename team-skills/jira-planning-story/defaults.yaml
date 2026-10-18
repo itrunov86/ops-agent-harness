@@ -1,0 +1,94 @@
+# =============================================================================
+#  Дефолты для скилла jira-planning-story
+#
+#  Этот файл — часть контракта команды. Меняется через PR.
+#  Скилл читает значения отсюда, чтобы не спрашивать каждый раз
+#  одно и то же. Если поле явно передано пользователем в чате,
+#  оно перебивает дефолт.
+# =============================================================================
+
+jira:
+  # ОБЯЗАТЕЛЬНО: project key, в который по умолчанию создаются задачи.
+  # Замени на свой (например OPS / INFRA / SRE).
+  project_key: "{{TRACKER_PROJECT}}"
+
+  # Тип задачи. В проекте {{TRACKER_PROJECT}} Story недоступна — используем Task.
+  issue_type: "Task"
+
+  # Приоритет по умолчанию. None — не задавать, пусть Jira ставит свой default.
+  priority: "Medium"
+
+  # Лейблы, которые ставятся на каждую задачу из этого скилла.
+  # Удобно для фильтрации в JQL: labels = "from-claude" AND labels = "planning".
+  # current_sprint — постоянный маркер задачи в активном спринте; sprint-YYYY-wWW
+  # вычисляется скиллом автоматически по sprint.reference_start и cadence_weeks.
+  labels:
+    - "from-claude"
+    - "planning"
+    - "current_sprint"
+
+  # Префикс тематического лейбла. Каждая задача ОБЯЗАНА получить ровно один
+  # лейбл темы вида "<prefix><тема>" (например theme-alerting, theme-observability),
+  # чтобы потом собирать статистику по направлениям через JQL:
+  #   project = {{TRACKER_PROJECT}} AND labels = "theme-alerting" ORDER BY created DESC
+  # Тему скилл выводит из сути задачи; если непонятно — спрашивает пользователя.
+  theme_label_prefix: "theme-"
+
+  # Реестр известных тем (без префикса). Это источник правды по направлениям.
+  # Скилл сначала пытается подобрать тему отсюда. Если задача про реально новое
+  # направление — добавь тему сюда (через PR) и строку в таблицу на странице
+  # confluence.themes_page.
+  themes:
+    alerting:  "Алертинг: алерт-каналы, правила, дежурные нотификации"
+    cicd:      "CI/CD: пайплайны, чарты, шаблоны деплоя"
+
+  # Если хочешь, чтобы исполнителем по умолчанию был ты сам —
+  # впиши свой Jira username (как в URL profile, не email).
+  # Пустая строка = не назначать.
+  default_assignee: "{{TRACKER_ASSIGNEE}}"
+
+# Опционально: автоматически подкладывать в секцию «Связанные документы»
+# ссылку на квартальный план из Confluence (через confluence_get_bookmark).
+# Имя совпадает с ключом в confluence.bookmarks в config.yaml.
+confluence:
+  link_bookmark: "quarterly_plan"
+
+  # Страница с таблицей тематических меток (реестр направлений для статистики).
+  # Разводящая «Квартальное планирование», space {{WIKI_SPACE}}. Если появилась новая тема —
+  # допиши строку в таблицу на этой странице.
+  themes_page: "<ID страницы тем>"
+
+# Конфигурация спринта. Скилл вычисляет метку текущего спринта автоматически.
+# reference_start — дата начала первого спринта (YYYY-MM-DD); якорь для расчёта.
+# cadence_weeks   — длина спринта в неделях.
+# Алгоритм: sprint_index = floor((today - reference_start).days / (cadence_weeks * 7))
+#           sprint_start  = reference_start + sprint_index * cadence_weeks * 7 days
+#           label         = "sprint-{sprint_start.year}-w{sprint_start.isoweek:02d}"
+# Пример: reference_start=2026-06-08 (ISO w24), cadence=2.
+#   today=2026-06-03 → sprint_index=-1 → sprint_start=2026-05-25 (w21) → sprint-2026-w21
+#   today=2026-06-08 → sprint_index=0  → sprint_start=2026-06-08 (w24) → sprint-2026-w24
+#   today=2026-06-20 → sprint_index=0  → sprint_start=2026-06-08 (w24) → sprint-2026-w24
+#   today=2026-06-22 → sprint_index=1  → sprint_start=2026-06-22 (w26) → sprint-2026-w26
+sprint:
+  reference_start: "2026-06-08"
+  cadence_weeks: 2
+
+# Поведение скилла
+behavior:
+  # Если true — перед созданием задачи скилл показывает превью и просит
+  # пользователя подтвердить ("создавать?"). Если false — создаёт сразу.
+  confirm_before_create: true
+
+  # Если true — после создания пытается приклеить ссылку на родительский
+  # epic (если пользователь его упомянул) через jira_update_issue.
+  link_to_epic_if_mentioned: true
+
+  # Минимальные требования к качеству шаблона: если меньше N пунктов плана —
+  # скилл попросит пользователя дополнить. Это страховка от пустых задач.
+  min_plan_items: 3
+  min_requirements: 3
+
+  # Если true — задача не создаётся без тематического лейбла
+  # (jira.theme_label_prefix + тема). Это нужно, чтобы по задачам можно было
+  # собирать статистику по направлениям. См. шаг про обогащение темой в SKILL.md.
+  require_theme_label: true

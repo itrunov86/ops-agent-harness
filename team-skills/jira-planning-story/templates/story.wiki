@@ -1,0 +1,29 @@
+h1. Проблематика
+
+{problem}
+
+h1. Предполагаемый план решения
+
+{plan}
+
+h1. Требования
+
+{requirements}
+
+h1. Критерии приёмки (Acceptance Criteria)
+
+{acceptance_criteria}
+
+h2. Definition of Done
+
+{definition_of_done}
+
+h1. Связанные документы и ссылки
+
+{links}
+
+----
+{noformat}
+Эта задача создана через Claude по шаблону skills/jira-planning-story.
+Любые правки шаблона — только через PR в репозитории mcp.
+{noformat}

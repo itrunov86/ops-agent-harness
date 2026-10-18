@@ -1,0 +1,76 @@
+# =============================================================================
+#  Дефолты для скилла mattermost-alerts-digest
+#
+#  Часть контракта команды. Меняется через PR.
+# =============================================================================
+
+mattermost:
+  # Команда и канал по умолчанию. Можно перебить из чата
+  # («проверь алерты за день в xxx»).
+  default_team: "<команда>"
+  default_channel: "infra-alerts"
+
+# Окно анализа
+window:
+  # Сколько часов смотреть в прошлое. 24 = сутки.
+  hours: 24
+
+  # Если посты упираются в потолок Mattermost (200 на страницу) — скилл
+  # пагинирует через before=<oldest_id>. Максимум страниц, чтобы не убежать.
+  max_pages: 10
+
+# Парсер сообщений Alertmanager → Mattermost
+parser:
+  # Поля, которые НЕ принимаем за имя алерта (их **bold** идёт после имени).
+  field_names:
+    - "Severity"
+    - "K8s cluster"
+    - "Namespace"
+    - "Instance"
+    - "Description"
+    - "Resolved by"
+    - "Job"
+    - "Project"
+    - "Folder Name"
+    - "Host"
+    - "Service"
+    - "Cluster"
+
+  # Эмодзи → статус. Если в сообщении встречается несколько — берётся первый
+  # по списку.
+  status_emoji:
+    ":red_circle:":              "firing"
+    ":rotating_light:":          "firing"
+    ":large_red_square:":        "firing"
+    ":warning:":                 "warning"
+    ":large_orange_diamond:":    "warning"
+    ":large_yellow_circle:":     "warning"
+    ":large_green_circle:":      "resolved"
+    ":white_check_mark:":        "resolved"
+
+  # Маркеры авто-сообщений (не алерты, но и не шум — учитываем отдельно).
+  ticket_markers:
+    - "Зарегистрировано обращение"
+    - "Создан тикет"
+
+# Пороги аномалий
+anomalies:
+  # Алерт повторился N+ раз за окно → flap-кандидат.
+  flap_threshold: 4
+
+  # В namespace ≥ N разных типов алертов → «unhealthy namespace».
+  unhealthy_namespace_distinct_alerts: 3
+
+  # Burst-окно: ≥ N алертов в Δ минут → всплеск.
+  burst_count: 5
+  burst_minutes: 5
+
+# Поведение
+behavior:
+  # Если true — итоговую сводку показываем как markdown-таблицы.
+  # Если false — компактный список без таблиц.
+  use_tables: true
+
+  # Сколько строк топа алертов показывать.
+  top_alerts_rows: 10
+  top_namespaces_rows: 5

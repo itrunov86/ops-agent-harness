@@ -1,27 +1,24 @@
-# Дефолты скилла sprint-report. Меняются обычным изменением репозитория, не в рантайме.
+# =============================================================================
+#  Дефолты для скилла sprint-report
+#
+#  Меняется через PR. Обновляй quarterly_plan_page_id при смене квартала.
+# =============================================================================
 
-wiki:
+confluence:
+  # Разводящая страница «Результаты спринтов» — родитель для всех страниц спринтов.
+  sprint_hub_page_id: "<ID страницы спринтов>"
+
+  # Страница текущего квартала — источник маппинга задач на квартальные цели.
+  # Обновлять при переходе на новый квартал (Q3 2026 и т.д.)
+  quarterly_plan_page_id: "<ID страницы квартального плана>"
+
   space: "{{WIKI_SPACE}}"
-  # Раздел «Результаты спринтов» — родитель снимков и таблица спринтов. Пусто — спросить пользователя.
-  sprint_hub_page_id: ""
-  # Страница текущего квартала (quarterly-planning). Обновляй при смене квартала. Пусто — без привязки к целям.
-  quarter_page_id: ""
 
-tracker:
-  project_key: "{{TRACKER_PROJECT}}"
-  # Названия статусов вашего workflow.
-  done_statuses: ["Done"]
-  in_progress_statuses: ["In Progress", "In Review"]
-  # Постоянная метка «задача в активном спринте» (как в tracker-story). Пусто — не используется.
-  active_sprint_label: "current_sprint"
+jira:
+  project: "{{TRACKER_PROJECT}}"
 
+# Параметры спринта — должны совпадать с jira-planning-story/defaults.yaml.
+# Формула метки: sprint-{year}-w{isoweek} старта спринта.
 sprint:
-  # label — метка sprint-YYYY-wWW на задачах; board — спринты доски трекера.
-  source: "label"
-  board_id: ""             # только для source: board
-  # Должны совпадать с tracker-story/defaults.yaml.
-  reference_start: ""      # YYYY-MM-DD, дата начала любого спринта
+  reference_start: "2026-06-08"
   cadence_weeks: 2
-
-behavior:
-  confirm_before_create: true   # черновик и явное подтверждение перед записью в вики и трекер

@@ -1,0 +1,68 @@
+# =============================================================================
+#  Дефолты для скилла jira-planning-epic
+#
+#  Часть контракта команды. Меняется через PR.
+#  Скилл читает значения отсюда, чтобы не спрашивать каждый раз
+#  одно и то же. Если поле явно передано пользователем в чате,
+#  оно перебивает дефолт.
+#
+#  Confluence-структура квартального планирования (роутер, страницы кварталов,
+#  имена) живёт в дефолтах соседнего скилла quarterly-planning. Этот скилл
+#  отвечает только за Jira-часть.
+# =============================================================================
+
+jira:
+  # ОБЯЗАТЕЛЬНО: project key, в который по умолчанию создаются эпики.
+  project_key: "{{TRACKER_PROJECT}}"
+
+  # Тип задачи для самого эпика.
+  issue_type: "Epic"
+
+  # Тип, которым по умолчанию создаются дочерние задачи под этим эпиком.
+  child_issue_type: "Task"
+
+  # Приоритет эпика по умолчанию. None — не задавать.
+  priority: "Medium"
+
+  # Лейблы, которые ставятся на каждый созданный эпик.
+  # Если эпик создаётся из quarterly-planning, родительский скилл добавит
+  # лейбл квартала (например "q2-2026").
+  labels:
+    - "from-claude"
+    - "planning"
+    - "epic"
+
+  # Лейблы, которые ставятся на дочерние задачи.
+  child_labels:
+    - "from-claude"
+    - "planning"
+
+  # Исполнитель по умолчанию. Пустая строка = не назначать.
+  default_assignee: "{{TRACKER_ASSIGNEE}}"
+
+  # Customfield для Epic Name. На вашем инстансе — customfield_<ID Epic Name>,
+  # обязателен при создании Epic. Передаётся в jira_create_issue через
+  # extra_fields={"<epic_name_field>": "<имя>"}.
+  epic_name_field: "customfield_<ID Epic Name>"
+
+  # Customfield для Epic Link (линковка Task → Epic). На вашем инстансе —
+  # customfield_<ID Epic Link>. Типичные значения на других инстансах:
+  # customfield_10008 / customfield_10014.
+  # Передаётся в jira_create_issue через
+  # extra_fields={"<epic_link_field>": "<EPIC-KEY>"} или в jira_update_issue
+  # через fields. Это НЕ parent_key — последний только для Sub-task.
+  epic_link_field: "customfield_<ID Epic Link>"
+
+# Поведение скилла
+behavior:
+  # Если true — перед записью в Jira показывает превью и просит
+  # пользователя подтвердить. Если false — действует сразу.
+  confirm_before_create: true
+
+  # Если true и пользователь перечислил подзадачи в исходном сообщении —
+  # после создания эпика скилл создаёт их и линкует через epic_link_field.
+  create_children_if_listed: true
+
+  # Если true — перед массовым созданием дочерних задач скилл подтверждает
+  # список ("создаю N подзадач под <KEY>?").
+  confirm_children_before_create: true
