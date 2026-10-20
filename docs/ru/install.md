@@ -11,8 +11,8 @@
 ## Установка
 
 ```bash
-git clone https://github.com/<you>/agent-harness ~/Projects/agent-harness
-cd ~/Projects/agent-harness
+git clone https://github.com/itrunov86/ops-agent-harness ~/Projects/ops-agent-harness
+cd ~/Projects/ops-agent-harness
 ./harness init
 ```
 
@@ -62,7 +62,7 @@ cd ~/Projects/agent-harness
 ## Обновление
 
 ```bash
-cd ~/Projects/agent-harness
+cd ~/Projects/ops-agent-harness
 git pull
 ./harness install --dry-run && ./harness install
 ./harness doctor

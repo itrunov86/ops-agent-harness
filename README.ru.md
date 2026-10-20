@@ -1,6 +1,6 @@
 [English](README.md) · **Русский**
 
-# agent-harness
+# ops-agent-harness
 
 Обвязка для ИИ-агентов **Claude Code** и **Codex** в работе DevOps/SRE: общие правила безопасности, скиллы для
 типовых задач, база знаний с поиском, журналы длинных задач и хуки, которые не дают агенту терять контекст.
@@ -23,8 +23,8 @@
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/<you>/agent-harness ~/Projects/agent-harness
-cd ~/Projects/agent-harness
+git clone https://github.com/itrunov86/ops-agent-harness ~/Projects/ops-agent-harness
+cd ~/Projects/ops-agent-harness
 ./harness init               # спросит организацию, пути, префиксы задач, трекер
 ./harness install --dry-run  # покажет, что будет сделано
 ./harness install            # скиллы, агенты, правила, хуки, база знаний

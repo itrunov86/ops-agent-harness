@@ -59,7 +59,7 @@ Codex запускает новые хуки только после `/hooks` �
 
 ```bash
 echo '{"hook_event_name":"UserPromptSubmit","session_id":"t","cwd":"'$PWD'","prompt":"OPS-1234 продолжаем"}' \
-  | python3 -I ~/Projects/agent-harness/tools/agent_session.py hook
+  | python3 -I ~/Projects/ops-agent-harness/tools/agent_session.py hook
 ```
 
 Тесты всех сценариев — `tests/test_agent_session.py`.

@@ -140,7 +140,7 @@ obsidian:
   # репозитория agent-harness (../../tools/kb.py относительно mcp/sre-toolbox).
   # Корень базы знаний kb.py берёт из конфига agent-harness (paths.kb_root,
   # ~/.config/agent-harness/config.toml или AGENT_HARNESS_CONFIG).
-  # kb_tool: "~/Projects/agent-harness/tools/kb.py"
+  # kb_tool: "~/Projects/ops-agent-harness/tools/kb.py"
 
   # Разрешить ли Claude записывать новые заметки (obsidian_append_finding).
   # По умолчанию выключено — vault только для чтения.

@@ -10,7 +10,7 @@
 
 | Подстановка | Что это | Пример значения |
 |---|---|---|
-| `{{HARNESS_HOME}}` | где лежит этот репозиторий | `~/Projects/agent-harness` |
+| `{{HARNESS_HOME}}` | где лежит этот репозиторий | `~/Projects/ops-agent-harness` |
 | `{{KB_ROOT}}` | база знаний (git-репозиторий, он же Obsidian vault) | `~/work/docs` |
 | `{{WORK_DIR}}` | общая папка, из которой открываются все чаты | `~/work/chats` |
 | `{{ORG_NAME}}` | короткое имя организации | `Acme` |

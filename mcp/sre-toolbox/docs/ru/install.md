@@ -16,7 +16,7 @@ Jira/Confluence/Obsidian и зарегистрировать сервер в Cla
 
 - macOS / Linux.
 - Python **3.10+** (в коде используется `X | None`, PEP 604).
-- Клон agent-harness (ниже — `~/Projects/agent-harness`).
+- Клон agent-harness (ниже — `~/Projects/ops-agent-harness`).
 - Personal Access Token от тех систем, которые подключаете (см. шаг 3).
 
 ---
@@ -26,7 +26,7 @@ Jira/Confluence/Obsidian и зарегистрировать сервер в Cla
 venv живёт внутри каталога сервера (`mcp/sre-toolbox/.venv`, он в `.gitignore`):
 
 ```bash
-cd ~/Projects/agent-harness/mcp/sre-toolbox
+cd ~/Projects/ops-agent-harness/mcp/sre-toolbox
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
@@ -77,7 +77,7 @@ jira:
 obsidian:
   vault_path: "~/Documents/Obsidian/SRE"
   # kb.py для kb_search/kb_list; по умолчанию ../../tools/kb.py этого репозитория
-  # kb_tool: "~/Projects/agent-harness/tools/kb.py"
+  # kb_tool: "~/Projects/ops-agent-harness/tools/kb.py"
   allow_writes: true                  # если агент должен писать findings
 
 server:
@@ -129,8 +129,8 @@ mkdir -p "$HOME/Documents/Obsidian/SRE"/{runbooks,postmortems,services,findings}
 
 ```bash
 claude mcp add --scope user sre-toolbox -- \
-  ~/Projects/agent-harness/mcp/sre-toolbox/.venv/bin/python \
-  ~/Projects/agent-harness/mcp/sre-toolbox/server.py
+  ~/Projects/ops-agent-harness/mcp/sre-toolbox/.venv/bin/python \
+  ~/Projects/ops-agent-harness/mcp/sre-toolbox/server.py
 ```
 
 Если `config.yaml` лежит не рядом с `server.py`, добавьте `--env MCP_CONFIG=/полный/путь/config.yaml`.

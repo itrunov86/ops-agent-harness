@@ -11,8 +11,8 @@
 ## Installation
 
 ```bash
-git clone https://github.com/<you>/agent-harness ~/Projects/agent-harness
-cd ~/Projects/agent-harness
+git clone https://github.com/itrunov86/ops-agent-harness ~/Projects/ops-agent-harness
+cd ~/Projects/ops-agent-harness
 ./harness init
 ```
 
@@ -63,7 +63,7 @@ Before any edit to `settings.json` and `hooks.json`, a backup goes to the same p
 ## Updating
 
 ```bash
-cd ~/Projects/agent-harness
+cd ~/Projects/ops-agent-harness
 git pull
 ./harness install --dry-run && ./harness install
 ./harness doctor

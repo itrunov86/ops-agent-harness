@@ -16,7 +16,7 @@ MCP capabilities the harness skills need — [../../../docs/mcp.md](../../../doc
 
 - macOS / Linux.
 - Python **3.10+** (the code uses `X | None`, PEP 604).
-- A clone of agent-harness (below: `~/Projects/agent-harness`).
+- A clone of agent-harness (below: `~/Projects/ops-agent-harness`).
 - A Personal Access Token for each system you connect (see step 3).
 
 ---
@@ -26,7 +26,7 @@ MCP capabilities the harness skills need — [../../../docs/mcp.md](../../../doc
 The venv lives inside the server directory (`mcp/sre-toolbox/.venv`, which is in `.gitignore`):
 
 ```bash
-cd ~/Projects/agent-harness/mcp/sre-toolbox
+cd ~/Projects/ops-agent-harness/mcp/sre-toolbox
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
@@ -77,7 +77,7 @@ jira:
 obsidian:
   vault_path: "~/Documents/Obsidian/SRE"
   # kb.py for kb_search/kb_list; default is ../../tools/kb.py of this repository
-  # kb_tool: "~/Projects/agent-harness/tools/kb.py"
+  # kb_tool: "~/Projects/ops-agent-harness/tools/kb.py"
   allow_writes: true                  # if the agent should write findings
 
 server:
@@ -129,8 +129,8 @@ Globally for the user:
 
 ```bash
 claude mcp add --scope user sre-toolbox -- \
-  ~/Projects/agent-harness/mcp/sre-toolbox/.venv/bin/python \
-  ~/Projects/agent-harness/mcp/sre-toolbox/server.py
+  ~/Projects/ops-agent-harness/mcp/sre-toolbox/.venv/bin/python \
+  ~/Projects/ops-agent-harness/mcp/sre-toolbox/server.py
 ```
 
 If `config.yaml` is not next to `server.py`, add `--env MCP_CONFIG=/full/path/config.yaml`.

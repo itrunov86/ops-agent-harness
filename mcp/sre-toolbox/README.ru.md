@@ -122,7 +122,7 @@
 ### 1. Установка
 
 ```bash
-cd ~/Projects/agent-harness/mcp/sre-toolbox
+cd ~/Projects/ops-agent-harness/mcp/sre-toolbox
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
@@ -173,7 +173,7 @@ grafana:
 # База знаний: kb.py из agent-harness (по умолчанию ../../tools/kb.py) + Obsidian vault
 obsidian:
   vault_path: "~/Documents/Obsidian/SRE"
-  # kb_tool: "~/Projects/agent-harness/tools/kb.py"
+  # kb_tool: "~/Projects/ops-agent-harness/tools/kb.py"
   allow_writes: false
 
 jira:
@@ -208,8 +208,8 @@ Claude Code:
 
 ```bash
 claude mcp add --scope user sre-toolbox -- \
-  ~/Projects/agent-harness/mcp/sre-toolbox/.venv/bin/python \
-  ~/Projects/agent-harness/mcp/sre-toolbox/server.py
+  ~/Projects/ops-agent-harness/mcp/sre-toolbox/.venv/bin/python \
+  ~/Projects/ops-agent-harness/mcp/sre-toolbox/server.py
 ```
 
 Codex (`~/.codex/config.toml`):

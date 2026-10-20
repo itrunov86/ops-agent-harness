@@ -51,7 +51,7 @@ authentication, a shared "write gate" and response aggregation are already there
 ## Knowledge base search as MCP
 
 ```bash
-claude mcp add --scope user kb -- python3 -I ~/Projects/agent-harness/tools/kb_mcp.py
+claude mcp add --scope user kb -- python3 -I ~/Projects/ops-agent-harness/tools/kb_mcp.py
 ```
 
 ```toml

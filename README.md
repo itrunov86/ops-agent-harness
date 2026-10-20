@@ -1,6 +1,6 @@
 **English** · [Русский](README.ru.md)
 
-# agent-harness
+# ops-agent-harness
 
 A harness for the **Claude Code** and **Codex** AI agents in DevOps/SRE work: shared safety rules, skills for
 routine tasks, a searchable knowledge base, journals for long-running tasks, and hooks that keep the agent from
@@ -23,8 +23,8 @@ losing context. It installs with one command and moves to a new job by editing a
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/agent-harness ~/Projects/agent-harness
-cd ~/Projects/agent-harness
+git clone https://github.com/itrunov86/ops-agent-harness ~/Projects/ops-agent-harness
+cd ~/Projects/ops-agent-harness
 ./harness init               # asks for organization, paths, task prefixes, tracker
 ./harness install --dry-run  # shows what will be done
 ./harness install            # skills, agents, rules, hooks, knowledge base

@@ -10,7 +10,7 @@ replaces them with values from `~/.config/agent-harness/config.toml` and puts th
 
 | Placeholder | What it is | Example value |
 |---|---|---|
-| `{{HARNESS_HOME}}` | where this repository lives | `~/Projects/agent-harness` |
+| `{{HARNESS_HOME}}` | where this repository lives | `~/Projects/ops-agent-harness` |
 | `{{KB_ROOT}}` | the knowledge base (a Git repository that is also an Obsidian vault) | `~/work/docs` |
 | `{{WORK_DIR}}` | the shared folder all chats are opened from | `~/work/chats` |
 | `{{ORG_NAME}}` | short organization name | `Acme` |

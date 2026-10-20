@@ -18,8 +18,8 @@
 
 ```bash
 python3 --version                    # 3.11+
-git clone https://github.com/<you>/agent-harness ~/Projects/agent-harness
-cd ~/Projects/agent-harness
+git clone https://github.com/itrunov86/ops-agent-harness ~/Projects/ops-agent-harness
+cd ~/Projects/ops-agent-harness
 ```
 
 Установите Claude Code и/или Codex.

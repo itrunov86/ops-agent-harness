@@ -134,7 +134,7 @@ prod отдаёт 502 с 10:15, вот алерт <ссылка>. Разбери
 ## Команды под рукой
 
 ```bash
-H=~/Projects/agent-harness
+H=~/Projects/ops-agent-harness
 python3 $H/tools/kb.py search "registry 504"
 python3 $H/tools/kb.py list --service vault --since 2026-01-01
 python3 $H/tools/kb.py lint                 # проверка документов

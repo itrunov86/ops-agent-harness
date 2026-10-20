@@ -59,7 +59,7 @@ All of it can be deleted — the hooks will start from a clean slate.
 
 ```bash
 echo '{"hook_event_name":"UserPromptSubmit","session_id":"t","cwd":"'$PWD'","prompt":"OPS-1234 continue"}' \
-  | python3 -I ~/Projects/agent-harness/tools/agent_session.py hook
+  | python3 -I ~/Projects/ops-agent-harness/tools/agent_session.py hook
 ```
 
 Tests for all scenarios are in `tests/test_agent_session.py`.

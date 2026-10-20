@@ -135,7 +135,7 @@ The daily-report skill fires only on the exact Russian phrase `Сформиру�
 ## Commands at hand
 
 ```bash
-H=~/Projects/agent-harness
+H=~/Projects/ops-agent-harness
 python3 $H/tools/kb.py search "registry 504"
 python3 $H/tools/kb.py list --service vault --since 2026-01-01
 python3 $H/tools/kb.py lint                 # check documents
